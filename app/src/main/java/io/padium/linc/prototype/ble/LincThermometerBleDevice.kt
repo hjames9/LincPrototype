@@ -1,4 +1,4 @@
-package io.padium.linc.ble.prototype
+package io.padium.linc.prototype.ble
 
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback

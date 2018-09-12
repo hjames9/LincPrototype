@@ -1,4 +1,4 @@
-package io.padium.linc.ble.prototype
+package io.padium.linc.prototype.ble
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -15,8 +15,8 @@ open class BleDevice(context: Context, deviceName : String) {
         private const val BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID = "00002902-0000-1000-8000-00805f9b34fb"
     }
 
-    protected var bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    protected var leScan : BluetoothAdapter.LeScanCallback
+    protected val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+    protected val leScan : BluetoothAdapter.LeScanCallback
     protected lateinit var bluetoothGatt : BluetoothGatt
     protected lateinit var bluetoothGattCb : BluetoothGattCallback
 

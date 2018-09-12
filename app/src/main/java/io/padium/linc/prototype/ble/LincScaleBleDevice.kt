@@ -1,4 +1,4 @@
-package io.padium.linc.ble.prototype
+package io.padium.linc.prototype.ble
 
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -53,6 +53,7 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
                 }
             }
         }
+
         override fun onDescriptorWrite(gatt: BluetoothGatt?, descriptor: BluetoothGattDescriptor?, status: Int) {
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {

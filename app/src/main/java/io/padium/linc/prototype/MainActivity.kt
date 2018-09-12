@@ -4,8 +4,8 @@ import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
-import io.padium.linc.ble.prototype.LincScaleBleDevice
-import io.padium.linc.ble.prototype.LincThermometerBleDevice
+import io.padium.linc.prototype.ble.LincScaleBleDevice
+import io.padium.linc.prototype.ble.LincThermometerBleDevice
 
 /**
  * Main activity for Linc bluetooth le test application.
