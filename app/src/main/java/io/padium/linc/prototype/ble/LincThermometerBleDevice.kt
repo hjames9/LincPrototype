@@ -7,9 +7,13 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothGattDescriptor
 import android.content.Context
+import android.os.Handler
+import android.os.Message
 import android.util.Log
 import android.view.MotionEvent
 import java.util.UUID
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.Executors
 
 class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
     companion object {
@@ -29,7 +33,17 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
     private lateinit var ff4 : BluetoothGattCharacteristic
     private lateinit var ff5 : BluetoothGattCharacteristic
 
+    var celsius = false
     private var descriptorWriteCount = 0
+    private val queue = ArrayBlockingQueue<Runnable>(10)
+    private val threadPool = Executors.newSingleThreadScheduledExecutor()
+    private val handler = InnerHandler()
+
+    private class InnerHandler : Handler() {
+        override fun handleMessage(message : Message) {
+            Log.i(TAG, "Processing message ${message.what}")
+        }
+    }
 
     private val thermometerBluetoothGattCb = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
@@ -63,6 +77,7 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
                 }
             }
         }
+
         override fun onDescriptorWrite(gatt: BluetoothGatt?, descriptor: BluetoothGattDescriptor?, status: Int) {
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
@@ -73,7 +88,7 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
                                 autoThermometerPair(gatt)
                             }
                             2 -> {
-                                Log.i(TAG, "Descriptor write called again, likely trying to get temps...")
+                                Log.i(TAG, "Descriptor write called again, getting versions...")
                                 readThermometerVersions(gatt)
                             }
                             else -> {
@@ -103,6 +118,12 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
                     Log.i(TAG, "Bluetooth LE characteristic write: ${characteristic?.uuid.toString()}")
+                    threadPool.submit {
+                        if(!queue.isEmpty()) {
+                            val runnable = queue.poll()
+                            runnable.run()
+                        }
+                    }
                 }
                 else -> {
                     Log.e(TAG, "Error with BLE characteristic write: ${characteristic?.uuid.toString()}")
@@ -120,18 +141,21 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
                 }
 
                 Log.i(TAG, ss)
+            } else {
+                Log.e(TAG, "Unexpected null of characteristic")
+                return
             }
 
             val buffer = characteristic?.value
             if(null != buffer) {
-                Log.i(TAG, String.format("Received buffer sized %d", buffer.size))
+                Log.d(TAG, "Received buffer sized ${buffer.size}")
             } else {
                 Log.e(TAG, "Empty byte array received")
                 return
             }
 
-            if(null == characteristic || null == gatt) {
-                Log.e(TAG, "Unexpected null of characteristic or gatt")
+            if(null == gatt) {
+                Log.e(TAG, "Unexpected null of gatt")
                 return
             }
 
@@ -139,26 +163,41 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
                 //Start reading temperatures...
                 when(buffer[0]) {
                     0x21.toByte() -> {
-                        //Initialize
-                        //asyncExecution(readThermometerVersions, gatt)
-                        //readThermometerVersions(gatt)
-                        //getTemperatureData(gatt)
-                        //readVoltage(gatt)
-                        //setUnit(gatt)
-                        //coolOff(gatt)
-                        setCharacteristicNotification(gatt, ff4, true, DescriptorType.WRITE)
-                        //Relative signal strength indicator
-                        //gatt.readRemoteRssi()
-                        //Dirty Diana
-                        //readVoltage(gatt)
+                        //init queue
+                        asyncExecution(Runnable{readThermometerVersions(gatt)})
+                        asyncExecution(Runnable{getTemperatureData(gatt)})
+                        asyncExecution(Runnable{readVoltage(gatt)})
+                        asyncExecution(Runnable{setUnit(gatt)})
+                        asyncExecution(Runnable{coolOff(gatt)})
+
+                        //open data
+                        handler.post {
+                            setCharacteristicNotification(gatt, ff4, true, DescriptorType.WRITE)
+                        }
+
+                        handler.postDelayed(object : Runnable {
+                            override fun run() {
+                                if(queue.size == 1)
+                                    asyncExecution(Runnable{readRemoteRssi(gatt)})
+
+                                handler.postDelayed(this, 2000)
+                            }
+                        }, 1000)
+
+                        handler.postDelayed(object : Runnable {
+                            override fun run() {
+                                asyncExecution(Runnable{readVoltage(gatt)})
+                                handler.postDelayed(this, 300000)
+                            }
+                        }, 10000)
                     }
                     0x23.toByte() -> {
-                        Log.i(TAG, "main versions: " + buffer[1])
-                        Log.i(TAG, "second versions: " + buffer[2])
-                        Log.i(TAG, "firmware type: " + buffer[3])
+                        Log.i(TAG, "main versions: ${buffer[1]}")
+                        Log.i(TAG, "second versions: ${buffer[2]}")
+                        Log.i(TAG, "firmware type: ${buffer[3]}")
                     }
                     0x20.toByte() -> {
-                        autoThermometerPair(gatt)
+                        asyncExecution(Runnable{autoThermometerPair(gatt)})
                     }
                     (-1).toByte() -> {
                         Log.e(TAG, "Bad service...")
@@ -197,15 +236,20 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
         ff5 = gattService.getCharacteristic(UUID.fromString(BLE_CHARACTERISTIC_FF5))
 
         setCharacteristicNotification(gatt, ff1, true, DescriptorType.WRITE)
-        Log.i(TAG, "Set ff1 characteristic notification done")
+    }
+
+    private fun asyncExecution(run : Runnable) {
+        queue.add(run)
     }
 
     private fun processTemperatures(temperatures : ByteArray) {
-        val getShort = { b: ByteArray, index: Int -> ((b[index + 1].toInt() shl 8) or (b[index + 0].toInt() and MotionEvent.ACTION_MASK)) as Short; }
+        val getShort = { b: ByteArray, index: Int -> ((b[index + 1].toInt() shl 8) or (b[index + 0].toInt() and MotionEvent.ACTION_MASK)).toShort() }
         for(it in 0..temperatures.size step 2) {
-            val temperature = (getShort(temperatures, it) as Double / 10.0 + 0.5).toInt().toShort()
+            if(it > temperatures.size - 1)
+                break
+            val temperature = (getShort(temperatures, it).toDouble() / 10.0 + 0.5).toInt().toShort()
             if (temperature != 0.toShort()) {
-                Log.i(TAG, "Temperature $temperature")
+                Log.i(TAG, "Temperature is ${temperature}C")
             }
         }
     }
@@ -247,7 +291,6 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
 
     private fun setUnit(gatt : BluetoothGatt) {
         Log.i(TAG, "Set temperature unit")
-        val celsius = false
 
         val bu = ByteArray(6)
         bu[0] = 2.toByte()
@@ -265,5 +308,17 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
 
         ff5.value = bu
         gatt.writeCharacteristic(ff5)
+    }
+
+    private fun coolOff(gatt : BluetoothGatt) {
+        Log.i(TAG, "Cooling off")
+        val lqq = 60 * 10
+        val bu = byteArrayOf(3.toByte(), (-1).toByte(), (lqq and MotionEvent.ACTION_MASK).toByte(), lqq.ushr(8).toByte(), 0.toByte(), 0.toByte())
+        ff5.value = bu
+        gatt.writeCharacteristic(ff5)
+    }
+
+    private fun readRemoteRssi(gatt : BluetoothGatt) {
+        gatt.readRemoteRssi()
     }
 }
