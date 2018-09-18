@@ -15,6 +15,7 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
         private const val BLE_SERVICE_ID = "00001910-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF2 = "0000fff2-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF4 = "0000fff4-0000-1000-8000-00805f9b34fb"
+        private val TAG = LincScaleBleDevice::class.java.simpleName
     }
 
     private lateinit var gattService : BluetoothGattService
@@ -26,15 +27,15 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
             super.onConnectionStateChange(gatt, status, newState)
             when(newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    Log.i(javaClass.simpleName, "Connected to GATT server.")
-                    Log.i(javaClass.simpleName, "Attempting to start service discovery: ${bluetoothGatt.discoverServices()}")
+                    Log.i(TAG, "Connected to GATT server.")
+                    Log.i(TAG, "Attempting to start service discovery: ${bluetoothGatt.discoverServices()}")
                     bluetoothAdapter.stopLeScan(leScan)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
-                    Log.i(javaClass.simpleName, "Disconnected from GATT server.")
+                    Log.i(TAG, "Disconnected from GATT server.")
                 }
                 else -> {
-                    Log.e(javaClass.simpleName, "Unknown BLE connection new state: $newState")
+                    Log.e(TAG, "Unknown BLE connection new state: $newState")
                 }
             }
         }
@@ -43,12 +44,12 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
             super.onServicesDiscovered(gatt, status)
             when (status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(javaClass.simpleName, "Bluetooth LE services discovered")
+                    Log.i(TAG, "Bluetooth LE services discovered")
 
                     if (null != gatt) {
                         setupScale(gatt)
                     } else {
-                        Log.e(javaClass.simpleName, "Unable to setup scale as not bluetooth gatt handle unavailable")
+                        Log.e(TAG, "Unable to setup scale as not bluetooth gatt handle unavailable")
                     }
                 }
             }
@@ -57,10 +58,10 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
         override fun onDescriptorWrite(gatt: BluetoothGatt?, descriptor: BluetoothGattDescriptor?, status: Int) {
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(javaClass.simpleName, "Bluetooth LE descriptor write: ${descriptor?.uuid.toString()}")
+                    Log.i(TAG, "Bluetooth LE descriptor write: ${descriptor?.uuid.toString()}")
                 }
                 else -> {
-                    Log.e(javaClass.simpleName, "Error with BLE descriptor write: ${descriptor?.uuid.toString()}")
+                    Log.e(TAG, "Error with BLE descriptor write: ${descriptor?.uuid.toString()}")
                 }
             }
         }
@@ -68,10 +69,10 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
         override fun onCharacteristicRead(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(javaClass.simpleName, "Bluetooth LE characteristic read: ${characteristic?.uuid.toString()}")
+                    Log.i(TAG, "Bluetooth LE characteristic read: ${characteristic?.uuid.toString()}")
                 }
                 else -> {
-                    Log.e(javaClass.simpleName, "Error with BLE characteristic read: ${characteristic?.uuid.toString()}")
+                    Log.e(TAG, "Error with BLE characteristic read: ${characteristic?.uuid.toString()}")
                 }
             }
         }
@@ -79,16 +80,16 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
         override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(javaClass.simpleName, "Bluetooth LE characteristic write: ${characteristic?.uuid.toString()}")
+                    Log.i(TAG, "Bluetooth LE characteristic write: ${characteristic?.uuid.toString()}")
                 }
                 else -> {
-                    Log.e(javaClass.simpleName, "Error with BLE characteristic write: ${characteristic?.uuid.toString()}")
+                    Log.e(TAG, "Error with BLE characteristic write: ${characteristic?.uuid.toString()}")
                 }
             }
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
-            Log.i(javaClass.simpleName, "Bluetooth LE characteristic changed: ${characteristic?.uuid.toString()}")
+            Log.i(TAG, "Bluetooth LE characteristic changed: ${characteristic?.uuid.toString()}")
 
             if (null != gatt) {
                 val values = characteristic?.value
@@ -97,9 +98,9 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
                     for (s in values) {
                         ss = StringBuilder(ss).append(Integer.toHexString(s.toInt())).append(", ").toString()
                     }
-                    Log.i(javaClass.simpleName, ss)
+                    Log.i(TAG, ss)
                 } else {
-                    Log.i(javaClass.simpleName, "No value written from BT")
+                    Log.i(TAG, "No value written from BT")
                 }
 
                 if (null != values) {
@@ -115,32 +116,32 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
 
                     if (intValue2 == -1807) {
                         //Send some data....wtf
-                        Log.i(javaClass.simpleName, "Sending some data to ${ff2.uuid}....")
+                        Log.i(TAG, "Sending some data to ${ff2.uuid}....")
                         val bArr = byteArrayOf((-96).toByte(), (-96).toByte(), (-96).toByte(), (-96).toByte())
                         ff2.value = bArr
                         gatt.writeCharacteristic(ff2)
                     } else {
-                        Log.i(javaClass.simpleName, "Weight in grams is $intValue2")
+                        Log.i(TAG, "Weight in grams is $intValue2")
                     }
                 }
             }
         }
 
         override fun onReadRemoteRssi(gatt: BluetoothGatt?, rssi: Int, status: Int) {
-            Log.i(javaClass.simpleName, "Bluetooth LE remote rssi read: $rssi")
+            Log.i(TAG, "Bluetooth LE remote rssi read: $rssi")
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(javaClass.simpleName, "Bluetooth LE remote rssi read success")
+                    Log.i(TAG, "Bluetooth LE remote rssi read success")
                 }
                 else -> {
-                    Log.e(javaClass.simpleName, "Error with BLE remote rssi read")
+                    Log.e(TAG, "Error with BLE remote rssi read")
                 }
             }
         }
     }
 
     init {
-        Log.i(javaClass.simpleName, "Creating Linc scale BLE device")
+        Log.i(TAG, "Creating Linc scale BLE device")
         bluetoothGattCb = scaleBluetoothGattCb
         bluetoothAdapter.startLeScan(leScan)
     }
@@ -151,9 +152,9 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
         ff4 = gattService.getCharacteristic(UUID.fromString(BLE_CHARACTERISTIC_FF4))
 
         setCharacteristicNotification(gatt, ff4, true, DescriptorType.BOTH)
-        Log.i(javaClass.simpleName, "Set ff4 characteristic notification done")
+        Log.i(TAG, "Set ff4 characteristic notification done")
 
         setCharacteristicNotification(gatt, ff2, true, DescriptorType.NONE)
-        Log.i(javaClass.simpleName, "Set ff2 characteristic notification done")
+        Log.i(TAG, "Set ff2 characteristic notification done")
     }
 }

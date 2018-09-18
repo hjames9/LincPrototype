@@ -12,6 +12,10 @@ import io.padium.linc.prototype.ble.LincThermometerBleDevice
  *
  */
 class MainActivity : Activity() {
+    companion object {
+        private val TAG = MainActivity::class.java.simpleName
+    }
+
     private lateinit var lincBleScale : LincScaleBleDevice
     private lateinit var lincBleThermometer : LincThermometerBleDevice
 
@@ -21,14 +25,14 @@ class MainActivity : Activity() {
 
         val lincScaleBluetoothButton : Button = findViewById(R.id.lincScaleBluetoothButton)
         lincScaleBluetoothButton.setOnClickListener {
-            Log.i(javaClass.simpleName, "Looking for Linc BLE scale...")
+            Log.i(TAG, "Looking for Linc BLE scale...")
             lincBleScale = LincScaleBleDevice(this)
             lincScaleBluetoothButton.isEnabled = false
         }
 
         val lincThermometerBluetoothButton : Button = findViewById(R.id.lincThermometerBluetoothButton)
         lincThermometerBluetoothButton.setOnClickListener {
-            Log.i(javaClass.simpleName, "Looking for Linc BLE thermometer...")
+            Log.i(TAG, "Looking for Linc BLE thermometer...")
             lincBleThermometer = LincThermometerBleDevice(this)
             lincThermometerBluetoothButton.isEnabled = false
         }

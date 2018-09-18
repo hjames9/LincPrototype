@@ -1,7 +1,6 @@
 package io.padium.linc.prototype.ble
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -13,6 +12,7 @@ import java.util.UUID
 open class BleDevice(context: Context, deviceName : String) {
     companion object {
         private const val BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID = "00002902-0000-1000-8000-00805f9b34fb"
+        private val TAG = BleDevice::class.java.simpleName
     }
 
     protected val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
@@ -27,30 +27,23 @@ open class BleDevice(context: Context, deviceName : String) {
     }
 
     init {
-        leScan = object : BluetoothAdapter.LeScanCallback {
-            override fun onLeScan(device: BluetoothDevice?, rssi: Int, scanRecord: ByteArray?) {
-                if(null != device) {
-                    Log.i(javaClass.simpleName,
-                            String.format("Found device %s with address %s",
-                                    device.name, device.address))
+        leScan = BluetoothAdapter.LeScanCallback { device, _, _ ->
+            if(null != device) {
+                Log.d(TAG,"Found device ${device.name} with address ${device.address}")
 
-                    if(device.name == deviceName)  {
-                        Log.i(javaClass.simpleName,
-                                String.format("Found device %s with address %s",
-                                        device.name, device.address))
-                        bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
-                        ready = true
-                    }
-                } else {
-                    Log.e(javaClass.simpleName, "No device found...")
+                if(device.name == deviceName)  {
+                    Log.i(TAG, "Found device ${device.name} with address ${device.address}")
+                    bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
+                    ready = true
                 }
+            } else {
+                Log.e(TAG, "No device found...")
             }
         }
     }
 
     protected fun setCharacteristicNotification(gatt : BluetoothGatt, characteristic: BluetoothGattCharacteristic, enable : Boolean, descriptorType : DescriptorType) {
-        Log.i(javaClass.simpleName, String.format("Set %b on characteristic %s on descriptor %s", enable, characteristic.uuid.toString(),
-                BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID))
+        Log.i(TAG, "Set $enable on characteristic ${characteristic.uuid} on descriptor $BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID")
 
         gatt.setCharacteristicNotification(characteristic, enable)
 
@@ -58,8 +51,7 @@ open class BleDevice(context: Context, deviceName : String) {
             val descriptor = characteristic.getDescriptor(UUID.fromString(BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID))
 
             if (null == descriptor) {
-                Log.i(javaClass.simpleName,
-                        "Descriptor $BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID doesn't exist on ${characteristic.uuid}")
+                Log.i(TAG,"Descriptor $BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID doesn't exist on ${characteristic.uuid}")
             } else {
                 if (enable) {
                     descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
