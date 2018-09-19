@@ -7,9 +7,10 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.content.Context
 import android.util.Log
+import java.io.Closeable
 import java.util.UUID
 
-open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : String) {
+open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : String) : Closeable {
     companion object {
         private const val BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID = "00002902-0000-1000-8000-00805f9b34fb"
         private val TAG = BleDevice::class.java.simpleName
@@ -40,6 +41,14 @@ open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : Strin
                 Log.e(TAG, "No device found...")
             }
         }
+    }
+
+    fun open() {
+        bluetoothAdapter.startLeScan(leScan)
+    }
+
+    override fun close() {
+        bluetoothAdapter.stopLeScan(leScan)
     }
 
     protected fun setCharacteristicNotification(gatt : BluetoothGatt, characteristic: BluetoothGattCharacteristic, enable : Boolean, descriptorType : DescriptorType) {

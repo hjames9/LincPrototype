@@ -144,7 +144,6 @@ class LincScaleBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(co
     init {
         Log.i(TAG, "Creating Linc scale BLE device")
         bluetoothGattCb = scaleBluetoothGattCb
-        bluetoothAdapter.startLeScan(leScan)
     }
 
     private fun setupScale(gatt : BluetoothGatt) {

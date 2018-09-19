@@ -17,9 +17,6 @@ class MainActivity : Activity() {
         private val TAG = MainActivity::class.java.simpleName
     }
 
-    private lateinit var lincBleScale : LincScaleBleDevice
-    private lateinit var lincBleThermometer : LincThermometerBleDevice
-
     private val bleDeviceEvent  = object : BleDeviceEvent {
         override fun onEvent(device: String, value: Int) {
             when(device) {
@@ -33,6 +30,9 @@ class MainActivity : Activity() {
         }
     }
 
+    private val lincBleScale = LincScaleBleDevice(this, bleDeviceEvent)
+    private val lincBleThermometer = LincThermometerBleDevice(this, bleDeviceEvent)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -40,14 +40,14 @@ class MainActivity : Activity() {
         val lincScaleBluetoothButton : Button = findViewById(R.id.lincScaleBluetoothButton)
         lincScaleBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE scale...")
-            lincBleScale = LincScaleBleDevice(this, bleDeviceEvent)
+            lincBleScale.open()
             lincScaleBluetoothButton.isEnabled = false
         }
 
         val lincThermometerBluetoothButton : Button = findViewById(R.id.lincThermometerBluetoothButton)
         lincThermometerBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE thermometer...")
-            lincBleThermometer = LincThermometerBleDevice(this, bleDeviceEvent)
+            lincBleThermometer.open()
             lincThermometerBluetoothButton.isEnabled = false
         }
     }

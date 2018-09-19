@@ -227,7 +227,6 @@ class LincThermometerBleDevice(context: Context, event: BleDeviceEvent) : BleDev
     init {
         Log.i(TAG, "Creating Linc thermometer BLE device")
         bluetoothGattCb = thermometerBluetoothGattCb
-        bluetoothAdapter.startLeScan(leScan)
     }
 
     private fun setupThermometer(gatt : BluetoothGatt) {
