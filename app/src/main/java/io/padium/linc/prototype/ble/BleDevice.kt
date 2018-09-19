@@ -9,7 +9,7 @@ import android.content.Context
 import android.util.Log
 import java.util.UUID
 
-open class BleDevice(context: Context, deviceName : String) {
+open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : String) {
     companion object {
         private const val BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID = "00002902-0000-1000-8000-00805f9b34fb"
         private val TAG = BleDevice::class.java.simpleName

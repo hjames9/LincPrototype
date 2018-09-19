@@ -10,7 +10,7 @@ import android.content.Context
 import android.util.Log
 import java.util.UUID
 
-class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
+class LincScaleBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(context, event,"nutridisk") {
     companion object {
         private const val BLE_SERVICE_ID = "00001910-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF2 = "0000fff2-0000-1000-8000-00805f9b34fb"
@@ -122,6 +122,7 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
                         gatt.writeCharacteristic(ff2)
                     } else {
                         Log.i(TAG, "Weight in grams is $intValue2")
+                        event.onEvent(TAG, intValue2.toInt())
                     }
                 }
             }
@@ -152,9 +153,6 @@ class LincScaleBleDevice(context: Context) : BleDevice(context, "nutridisk") {
         ff4 = gattService.getCharacteristic(UUID.fromString(BLE_CHARACTERISTIC_FF4))
 
         setCharacteristicNotification(gatt, ff4, true, DescriptorType.BOTH)
-        Log.i(TAG, "Set ff4 characteristic notification done")
-
         setCharacteristicNotification(gatt, ff2, true, DescriptorType.NONE)
-        Log.i(TAG, "Set ff2 characteristic notification done")
     }
 }

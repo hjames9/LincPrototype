@@ -15,7 +15,7 @@ import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
 
-class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
+class LincThermometerBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(context, event,"iBBQ") {
     companion object {
         private const val BLE_SERVICE_ID = "0000fff0-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF1 = "0000fff1-0000-1000-8000-00805f9b34fb"
@@ -204,7 +204,10 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
                     }
                 }
             } else if(characteristic.uuid == ff4.uuid) {
-                processTemperatures(characteristic.value)
+                val temperatures = processTemperatures(characteristic.value)
+                for(temperature in temperatures) {
+                    event.onEvent(TAG, temperature)
+                }
             }
         }
 
@@ -242,16 +245,20 @@ class LincThermometerBleDevice(context: Context) : BleDevice(context,"iBBQ") {
         queue.add(run)
     }
 
-    private fun processTemperatures(temperatures : ByteArray) {
+    private fun processTemperatures(temperatures : ByteArray) : List<Int> {
+        val temps = mutableListOf<Int>()
+
         val getShort = { b: ByteArray, index: Int -> ((b[index + 1].toInt() shl 8) or (b[index + 0].toInt() and MotionEvent.ACTION_MASK)).toShort() }
         for(it in 0..temperatures.size step 2) {
             if(it > temperatures.size - 1)
                 break
             val temperature = (getShort(temperatures, it).toDouble() / 10.0 + 0.5).toInt().toShort()
             if (temperature != 0.toShort()) {
-                Log.i(TAG, "Temperature is ${temperature}C")
+                temps.add(temperature.toInt())
             }
         }
+
+        return temps
     }
 
     private fun autoThermometerPair(gatt : BluetoothGatt) {
