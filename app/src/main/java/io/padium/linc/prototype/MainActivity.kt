@@ -41,14 +41,12 @@ class MainActivity : Activity() {
         lincScaleBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE scale...")
             lincBleScale.open()
-            lincScaleBluetoothButton.isEnabled = false
         }
 
         val lincThermometerBluetoothButton : Button = findViewById(R.id.lincThermometerBluetoothButton)
         lincThermometerBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE thermometer...")
             lincBleThermometer.open()
-            lincThermometerBluetoothButton.isEnabled = false
         }
     }
 }

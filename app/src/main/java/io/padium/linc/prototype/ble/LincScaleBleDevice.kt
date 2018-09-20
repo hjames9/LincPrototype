@@ -30,9 +30,11 @@ class LincScaleBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(co
                     Log.i(TAG, "Connected to GATT server.")
                     Log.i(TAG, "Attempting to start service discovery: ${bluetoothGatt.discoverServices()}")
                     bluetoothAdapter.stopLeScan(leScan)
+                    ready = true
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "Disconnected from GATT server.")
+                    ready = false
                 }
                 else -> {
                     Log.e(TAG, "Unknown BLE connection new state: $newState")
@@ -121,7 +123,6 @@ class LincScaleBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(co
                         ff2.value = bArr
                         gatt.writeCharacteristic(ff2)
                     } else {
-                        Log.i(TAG, "Weight in grams is $intValue2")
                         event.onEvent(TAG, intValue2.toInt())
                     }
                 }

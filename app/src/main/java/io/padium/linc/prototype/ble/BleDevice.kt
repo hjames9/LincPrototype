@@ -9,6 +9,7 @@ import android.content.Context
 import android.util.Log
 import java.io.Closeable
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : String) : Closeable {
     companion object {
@@ -21,7 +22,8 @@ open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : Strin
     protected lateinit var bluetoothGatt : BluetoothGatt
     protected lateinit var bluetoothGattCb : BluetoothGattCallback
 
-    var ready = false
+    protected var ready = false
+    private var starting = AtomicBoolean(false)
 
     enum class DescriptorType {
         READ, WRITE, BOTH, NONE
@@ -35,7 +37,6 @@ open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : Strin
                 if(device.name == deviceName)  {
                     Log.i(TAG, "Found device ${device.name} with address ${device.address}")
                     bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
-                    ready = true
                 }
             } else {
                 Log.e(TAG, "No device found...")
@@ -44,7 +45,10 @@ open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : Strin
     }
 
     fun open() {
-        bluetoothAdapter.startLeScan(leScan)
+        if(!ready && !starting.get()) {
+            starting.set(true)
+            bluetoothAdapter.startLeScan(leScan)
+        }
     }
 
     override fun close() {
