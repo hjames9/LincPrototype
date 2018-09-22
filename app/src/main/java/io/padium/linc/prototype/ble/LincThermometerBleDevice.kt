@@ -52,7 +52,7 @@ class LincThermometerBleDevice(context: Context, event: BleDeviceEvent) : BleDev
                 BluetoothProfile.STATE_CONNECTED -> {
                     Log.i(TAG, "Connected to GATT server.")
                     Log.i(TAG, "Attempting to start service discovery: ${bluetoothGatt.discoverServices()}")
-                    bluetoothAdapter.stopLeScan(leScan)
+                    bluetoothScanner.stopScan(leScan)
                     ready = true
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
@@ -176,6 +176,15 @@ class LincThermometerBleDevice(context: Context, event: BleDeviceEvent) : BleDev
                         handler.post {
                             setCharacteristicNotification(gatt, ff4, true, DescriptorType.WRITE)
                         }
+
+                        handler.postDelayed(object : Runnable {
+                            override fun run() {
+                                if(queue.size == 1)
+                                    asyncExecution(Runnable{readRemoteRssi(gatt)})
+
+                                handler.postDelayed(this, 2000)
+                            }
+                        }, 1000)
                     }
                     0x23.toByte() -> {
                         Log.i(TAG, "main versions: ${buffer[1]}")

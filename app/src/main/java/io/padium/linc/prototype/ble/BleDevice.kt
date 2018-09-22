@@ -5,54 +5,82 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanSettings
+import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.util.Log
 import java.io.Closeable
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 
-open class BleDevice(context: Context, event: BleDeviceEvent, deviceName : String) : Closeable {
+abstract class BleDevice(context: Context, val event: BleDeviceEvent, val deviceName : String) : Closeable {
     companion object {
         private const val BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID = "00002902-0000-1000-8000-00805f9b34fb"
         private val TAG = BleDevice::class.java.simpleName
     }
 
     protected val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    protected val leScan : BluetoothAdapter.LeScanCallback
+    protected val leScan : ScanCallback
+    protected val bluetoothScanner : BluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
     protected lateinit var bluetoothGatt : BluetoothGatt
     protected lateinit var bluetoothGattCb : BluetoothGattCallback
 
     protected var ready = false
-    private var starting = AtomicBoolean(false)
+    private var starting = false
 
     enum class DescriptorType {
         READ, WRITE, BOTH, NONE
     }
 
     init {
-        leScan = BluetoothAdapter.LeScanCallback { device, _, _ ->
-            if(null != device) {
-                Log.d(TAG,"Found device ${device.name} with address ${device.address}")
+        leScan = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult?) {
+                val device = result?.device
+                if(null != device) {
+                    Log.d(TAG,"Found device ${device.name} with address ${device.address}")
 
-                if(device.name == deviceName)  {
-                    Log.i(TAG, "Found device ${device.name} with address ${device.address}")
-                    bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
+                    if(device.name == deviceName)  {
+                        Log.i(TAG, "Found device ${device.name} with address ${device.address}")
+                        bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
+                        starting = false
+                    }
+                } else {
+                    Log.e(TAG, "No device found...")
                 }
-            } else {
-                Log.e(TAG, "No device found...")
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e(TAG, "Scan failed, no device found...")
+            }
+
+            override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+                super.onBatchScanResults(results)
+                Log.i(TAG, "onBatchScanResults")
             }
         }
     }
 
+    protected fun getScanFilter(): ScanFilter {
+        val scanFilter = ScanFilter.Builder()
+        return scanFilter.build()
+    }
+
+    protected fun getScanSettings(): ScanSettings {
+        val scanSettings = ScanSettings.Builder()
+        return scanSettings.build()
+    }
+
     fun open() {
-        if(!ready && !starting.get()) {
-            starting.set(true)
-            bluetoothAdapter.startLeScan(leScan)
+        if(!ready && !starting) {
+            starting = true
+            bluetoothScanner.startScan(listOf(getScanFilter()), getScanSettings(), leScan)
         }
     }
 
     override fun close() {
-        bluetoothAdapter.stopLeScan(leScan)
+        bluetoothScanner.stopScan(leScan)
     }
 
     protected fun setCharacteristicNotification(gatt : BluetoothGatt, characteristic: BluetoothGattCharacteristic, enable : Boolean, descriptorType : DescriptorType) {
