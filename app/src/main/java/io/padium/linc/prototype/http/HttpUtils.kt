@@ -14,6 +14,36 @@ enum class HttpMethod {
 object HttpUtils {
 
     @JvmStatic
+    fun isInformational(code: Int): Boolean {
+        return IntRange(100, 199).contains(code)
+    }
+
+    @JvmStatic
+    fun isSuccess(code: Int): Boolean {
+        return IntRange(200, 299).contains(code)
+    }
+
+    @JvmStatic
+    fun isRedirect(code: Int): Boolean {
+        return IntRange(300, 399).contains(code)
+    }
+
+    @JvmStatic
+    fun isClientError(code: Int): Boolean {
+        return IntRange(400, 499).contains(code)
+    }
+
+    @JvmStatic
+    fun isServerError(code: Int): Boolean {
+        return IntRange(500, 599).contains(code)
+    }
+
+    @JvmStatic
+    fun isError(code: Int): Boolean {
+        return isClientError(code) || isServerError(code)
+    }
+
+    @JvmStatic
     fun buildRequestParameters(parameters: Map<String, String>): String {
         val parametersStr = StringBuilder("?")
 
@@ -32,7 +62,7 @@ object HttpUtils {
 
     @JvmStatic
     fun requestText(url: String, method: HttpMethod, contentType: String, requestBody: String = "",
-                    requestHeaders : Map<String, String> = mapOf()): Pair<Int, String?> {
+                    requestHeaders : Map<String, String> = mapOf()): Triple<Int, String?, Map<String, List<String>>> {
         val mediaType  = MediaType.parse(contentType)
         val body = RequestBody.create(mediaType, requestBody)
         return request(url, method, body, requestHeaders)
@@ -40,7 +70,7 @@ object HttpUtils {
 
     @JvmStatic
     fun requestBinary(url: String, method: HttpMethod, contentType: String, requestBody: ByteArray = byteArrayOf(),
-                      requestHeaders : Map<String, String> = mapOf()): Pair<Int, String?> {
+                      requestHeaders : Map<String, String> = mapOf()): Triple<Int, String?, Map<String, List<String>>> {
         val mediaType  = MediaType.parse(contentType)
         val body = RequestBody.create(mediaType, requestBody)
         return request(url, method, body, requestHeaders)
@@ -48,7 +78,7 @@ object HttpUtils {
 
     @JvmStatic
     private fun request(url: String, method: HttpMethod, requestBody: RequestBody,
-                        requestHeaders : Map<String, String>): Pair<Int, String?> {
+                        requestHeaders : Map<String, String>): Triple<Int, String?, Map<String, List<String>>> {
         //Build request with method
         val request = Request.Builder().url(url)
         when(method) {
@@ -68,6 +98,13 @@ object HttpUtils {
         val client = OkHttpClient()
         val response = client.newCall(request.build()).execute()
 
-        return Pair(response.code(), response.body()?.string())
+        val headersMap = mutableMapOf<String, List<String>>()
+        val headers = response.headers()
+        for(iterator in 0 until headers.size()) {
+            val headerName = headers.name(iterator)
+            headersMap[headerName] = headers.values(headerName)
+        }
+
+        return Triple(response.code(), response.body()?.string(), headersMap)
     }
 }
