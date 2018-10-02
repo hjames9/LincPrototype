@@ -1,1 +1,1 @@
-include ':app', ':linc_ble'
+include ':app', ':ble'

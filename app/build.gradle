@@ -53,5 +53,5 @@ dependencies {
     implementation "org.jetbrains.anko:anko:0.10.6"
     implementation "io.vertx:vertx-core:3.5.3"
     implementation "io.vertx:vertx-lang-kotlin:3.5.3"
-    implementation project(':linc_ble')
+    implementation project(':ble')
 }
