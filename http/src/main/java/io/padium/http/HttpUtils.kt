@@ -1,10 +1,10 @@
-package io.padium.linc.prototype.http
+package io.padium.http
 
-import android.net.Uri
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import org.apache.commons.codec.net.URLCodec
 import java.lang.StringBuilder
 
 enum class HttpMethod {
@@ -46,15 +46,16 @@ object HttpUtils {
     @JvmStatic
     fun buildRequestParameters(parameters: Map<String, String>): String {
         val parametersStr = StringBuilder("?")
+        val coder = URLCodec()
 
         var prefix = ""
         for(parameter in parameters) {
             parametersStr.append(prefix)
             prefix = "&"
 
-            parametersStr.append(Uri.encode(parameter.key, null))
+            parametersStr.append(coder.encode(parameter.key))
             parametersStr.append('=')
-            parametersStr.append(Uri.encode(parameter.value, null))
+            parametersStr.append(coder.encode(parameter.value))
         }
 
         return parametersStr.toString()

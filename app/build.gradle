@@ -54,4 +54,5 @@ dependencies {
     implementation "io.vertx:vertx-core:3.5.3"
     implementation "io.vertx:vertx-lang-kotlin:3.5.3"
     implementation project(':ble')
+    implementation project(':http')
 }
