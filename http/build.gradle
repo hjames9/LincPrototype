@@ -4,6 +4,10 @@ plugins {
 
 apply plugin: 'java-library'
 
+apply plugin: 'com.jfrog.artifactory'
+
+apply plugin: 'maven-publish'
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
@@ -25,5 +29,45 @@ compileKotlin {
 compileTestKotlin {
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+}
+
+def libraryGroupId = 'io.padium.http'
+def libraryArtifactId = 'http'
+def libraryVersion = '0.0.1'
+
+publishing {
+    publications {
+        jar(MavenPublication) {
+            groupId libraryGroupId
+            version libraryVersion
+            artifactId libraryArtifactId
+
+            artifact("$buildDir/libs/${artifactId}.jar")
+        }
+    }
+}
+
+artifactory {
+    contextUrl = 'https://padium.io:6553/artifactory'
+    publish {
+        repository {
+            repoKey = 'gradle-dev-local'
+
+            try {
+                username = artifactory_username
+                password = artifactory_password
+            } catch (MissingPropertyException e) {
+                System.err.println("Please set \"artifactory_username\" and \"artifactory_password\" in \$HOME/.gradle/gradle.properties")
+                throw e
+            }
+        }
+        defaults {
+            publications('jar')
+            publishArtifacts = true
+
+            properties = ['qa.level': 'basic', 'q.os': 'android', 'dev.team': 'core']
+            publishPom = true
+        }
     }
 }

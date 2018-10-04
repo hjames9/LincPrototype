@@ -4,6 +4,10 @@ apply plugin: 'kotlin-android'
 
 apply plugin: 'kotlin-android-extensions'
 
+apply plugin: 'com.jfrog.artifactory'
+
+apply plugin: 'maven-publish'
+
 android {
     compileSdkVersion 27
 
@@ -48,4 +52,44 @@ dependencies {
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+}
+
+def libraryGroupId = 'io.padium.linc.prototype'
+def libraryArtifactId = 'ble'
+def libraryVersion = '0.0.1'
+
+publishing {
+    publications {
+        aar(MavenPublication) {
+            groupId libraryGroupId
+            version libraryVersion
+            artifactId libraryArtifactId
+
+            artifact("$buildDir/outputs/aar/${artifactId}-release.aar")
+        }
+    }
+}
+
+artifactory {
+    contextUrl = 'https://padium.io:6553/artifactory'
+    publish {
+        repository {
+            repoKey = 'gradle-dev-local'
+
+            try {
+                username = artifactory_username
+                password = artifactory_password
+            } catch (MissingPropertyException e) {
+                System.err.println("Please set \"artifactory_username\" and \"artifactory_password\" in \$HOME/.gradle/gradle.properties")
+                throw e
+            }
+        }
+        defaults {
+            publications('aar')
+            publishArtifacts = true
+
+            properties = ['qa.level': 'basic', 'q.os': 'android', 'dev.team': 'core']
+            publishPom = true
+        }
+    }
 }
