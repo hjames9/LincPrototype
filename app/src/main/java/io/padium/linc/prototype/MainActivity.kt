@@ -4,9 +4,9 @@ import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
-import io.padium.linc.prototype.ble.BleDeviceEvent
-import io.padium.linc.prototype.ble.LincScaleBleDevice
-import io.padium.linc.prototype.ble.LincThermometerBleDevice
+import io.padium.linc.prototype.ble.LincBleDeviceEvent
+import io.padium.linc.prototype.ble.ScaleLincBleDevice
+import io.padium.linc.prototype.ble.ThermometerLincBleDevice
 
 /**
  * Main activity for Linc bluetooth le test application.
@@ -17,12 +17,12 @@ class MainActivity : Activity() {
         private val TAG = MainActivity::class.java.simpleName
     }
 
-    private val bleDeviceEvent  = object : BleDeviceEvent {
+    private val bleDeviceEvent  = object : LincBleDeviceEvent {
         override fun onEvent(device: String, value: Int) {
             when(device) {
-                LincScaleBleDevice::class.java.simpleName ->
+                ScaleLincBleDevice::class.java.simpleName ->
                     Log.i(TAG, "Scale weight is ${value}g")
-                LincThermometerBleDevice::class.java.simpleName ->
+                ThermometerLincBleDevice::class.java.simpleName ->
                     Log.i(TAG, "Thermometer temperature is ${value}C")
                 else ->
                     Log.e(TAG, "Unknown device $device with value $value")
@@ -30,8 +30,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private val lincBleScale = LincScaleBleDevice(this, bleDeviceEvent)
-    private val lincBleThermometer = LincThermometerBleDevice(this, bleDeviceEvent)
+    private val lincBleScale = ScaleLincBleDevice(this, bleDeviceEvent)
+    private val lincBleThermometer = ThermometerLincBleDevice(this, bleDeviceEvent)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

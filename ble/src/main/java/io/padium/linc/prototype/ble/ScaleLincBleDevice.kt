@@ -10,12 +10,12 @@ import android.content.Context
 import android.util.Log
 import java.util.UUID
 
-class LincScaleBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(context, event,"nutridisk") {
+class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleDevice(context, event,"nutridisk") {
     companion object {
         private const val BLE_SERVICE_ID = "00001910-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF2 = "0000fff2-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF4 = "0000fff4-0000-1000-8000-00805f9b34fb"
-        private val TAG = LincScaleBleDevice::class.java.simpleName
+        private val TAG = ScaleLincBleDevice::class.java.simpleName
     }
 
     private lateinit var gattService : BluetoothGattService

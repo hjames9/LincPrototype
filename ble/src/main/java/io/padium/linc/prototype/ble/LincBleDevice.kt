@@ -15,10 +15,10 @@ import android.util.Log
 import java.io.Closeable
 import java.util.UUID
 
-abstract class BleDevice(context: Context, val event: BleDeviceEvent, val deviceName : String) : Closeable {
+abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, val deviceName : String) : Closeable {
     companion object {
         private const val BLE_DESCRIPTOR_CLIENT_CHARACTERISTIC_CONFIG_ID = "00002902-0000-1000-8000-00805f9b34fb"
-        private val TAG = BleDevice::class.java.simpleName
+        private val TAG = LincBleDevice::class.java.simpleName
     }
 
     protected val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()

@@ -1,5 +1,5 @@
 package io.padium.linc.prototype.ble
 
-interface BleDeviceEvent {
+interface LincBleDeviceEvent {
     fun onEvent(device : String, value : Int)
 }

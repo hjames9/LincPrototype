@@ -15,7 +15,7 @@ import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
 
-class LincThermometerBleDevice(context: Context, event: BleDeviceEvent) : BleDevice(context, event,"iBBQ") {
+class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleDevice(context, event,"iBBQ") {
     companion object {
         private const val BLE_SERVICE_ID = "0000fff0-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF1 = "0000fff1-0000-1000-8000-00805f9b34fb"
@@ -23,7 +23,7 @@ class LincThermometerBleDevice(context: Context, event: BleDeviceEvent) : BleDev
         private const val BLE_CHARACTERISTIC_FF3 = "0000fff3-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF4 = "0000fff4-0000-1000-8000-00805f9b34fb"
         private const val BLE_CHARACTERISTIC_FF5 = "0000fff5-0000-1000-8000-00805f9b34fb"
-        private val TAG = LincThermometerBleDevice::class.java.simpleName
+        private val TAG = ThermometerLincBleDevice::class.java.simpleName
     }
 
     private lateinit var gattService : BluetoothGattService
