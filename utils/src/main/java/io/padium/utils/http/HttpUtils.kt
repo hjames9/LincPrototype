@@ -1,4 +1,4 @@
-package io.padium.http
+package io.padium.utils.http
 
 import okhttp3.MediaType
 import okhttp3.OkHttpClient

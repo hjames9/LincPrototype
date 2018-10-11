@@ -7,6 +7,10 @@ import android.widget.Button
 import io.padium.linc.prototype.ble.LincBleDeviceEvent
 import io.padium.linc.prototype.ble.ScaleLincBleDevice
 import io.padium.linc.prototype.ble.ThermometerLincBleDevice
+import io.padium.utils.tcp.TcpCallback
+import io.padium.utils.tcp.TcpConnection
+import io.padium.utils.tcp.TcpUtils
+import org.jetbrains.anko.doAsync
 
 /**
  * Main activity for Linc bluetooth le test application.
@@ -47,6 +51,66 @@ class MainActivity : Activity() {
         lincThermometerBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE thermometer...")
             lincBleThermometer.open()
+        }
+
+        doTcpTest()
+        doTcpTest(true)
+    }
+
+    private fun doTcpTest(tls : Boolean = false) {
+        val callback = object : TcpCallback {
+            private var counter = 0
+            private var readAndWrite = 0
+            override fun onError(connection: TcpConnection, th: Throwable) {
+                Log.e(TAG, th.message, th)
+                connection.close()
+            }
+
+            override fun onConnect(connection: TcpConnection, success: Boolean) {
+                if(success) {
+                    Log.i(TAG, "Successfully created ${if(tls) "encrypted" else "clear"} connection")
+                    connection.write("hayden was here".toByteArray())
+                    counter++
+                } else {
+                    Log.e(TAG, "Connection could not be created")
+                }
+            }
+
+            override fun onClose(connection: TcpConnection) {
+                Log.i(TAG, "Successfully closed connection")
+            }
+
+            override fun onWrite(connection: TcpConnection) {
+                Log.i(TAG, "Iteration $counter. Written bytes")
+                if(++readAndWrite == 2) {
+                    onReadAndWrite(connection)
+                }
+            }
+
+            override fun onRead(connection: TcpConnection, byteArray: ByteArray) {
+                Log.i(TAG, "Iteration $counter. Received ${byteArray.size} bytes")
+                if(++readAndWrite == 2) {
+                    onReadAndWrite(connection)
+                }
+            }
+
+            fun onReadAndWrite(connection: TcpConnection) {
+                if(counter++ < 2) {
+                    readAndWrite = 0
+                    connection.write("hayden was here".toByteArray())
+                } else {
+                    connection.close()
+                }
+            }
+        }
+
+        doAsync {
+            if (tls) {
+                TcpUtils.doTlsConnection(this@MainActivity.filesDir.absoluteFile,
+                        "192.168.1.234", 7000, callback)
+            } else {
+                TcpUtils.doTcpConnection("192.168.1.234", 7, callback)
+            }
         }
     }
 }
