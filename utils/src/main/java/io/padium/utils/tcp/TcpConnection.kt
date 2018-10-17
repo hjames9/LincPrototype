@@ -15,7 +15,9 @@ class TcpConnection(private val callback: TcpCallback) : Closeable {
 
     fun write(byteArray: ByteArray) {
         if(state == TcpStatus.CONNECTED) {
-            socket.write(Buffer.buffer(byteArray))
+            socket.write(Buffer.buffer(byteArray)) {
+                callback.onWrite(this)
+            }
         } else {
             callback.onError(this, TcpException("Socket is disconnected"))
         }
@@ -40,10 +42,6 @@ class TcpConnection(private val callback: TcpCallback) : Closeable {
         socket.closeHandler {
             state = TcpStatus.DISCONNECTED
             callback.onClose(this)
-        }
-
-        socket.writeHandler{
-            callback.onWrite(this)
         }
     }
 }

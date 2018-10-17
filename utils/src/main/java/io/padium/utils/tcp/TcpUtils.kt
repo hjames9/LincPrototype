@@ -34,7 +34,7 @@ object TcpUtils {
     }
 
     @Throws(TcpException::class)
-    private fun setupTlsOptions(keysDirectory : File, clientOptions: NetClientOptions, useInternalCerts: Boolean = true)
+    private fun setupTlsOptions(keysDirectory : File, clientOptions: NetClientOptions, useInternalCerts: Boolean)
             : NetClientOptions {
         clientOptions.isSsl = true
 
@@ -57,14 +57,14 @@ object TcpUtils {
         try {
             //Client trust store
             clientOptions.isTrustAll = false
-            if(useInternalCerts) {
-                val trustOptions = PemTrustOptions().addCertValue(Buffer.buffer(getAndroidRootCertificates()))
-                clientOptions.pemTrustOptions = trustOptions
-            } else {
+            if(!useInternalCerts || File("$keysDirectory/truststore.p12").exists()) {
                 val trustStoreFile = "$keysDirectory/truststore.p12"
                 val clientTrustStoreBuffer = vertx.fileSystem().readFileBlocking(trustStoreFile)
                 val trustOptions = PfxOptions(value = clientTrustStoreBuffer, password = "admin123")
                 clientOptions.pfxTrustOptions = trustOptions
+            } else {
+                val trustOptions = PemTrustOptions().addCertValue(Buffer.buffer(getAndroidRootCertificates()))
+                clientOptions.pemTrustOptions = trustOptions
             }
         } catch (e: NoSuchFileException) {
             throw TcpException(e.message, e)
@@ -102,7 +102,7 @@ object TcpUtils {
 
     @Throws(TcpException::class)
     fun doTlsConnection(keyLocation : File, host : String, port : Int, callback: TcpCallback): TcpConnection {
-        val clientOptions = setupTlsOptions(keyLocation, NetClientOptions())
+        val clientOptions = setupTlsOptions(keyLocation, NetClientOptions(), true)
         return doConnection(clientOptions, host, port, callback)
     }
 
