@@ -8,9 +8,11 @@ import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothGattDescriptor
 import android.content.Context
 import android.os.Handler
+import android.os.Looper
 import android.os.Message
 import android.util.Log
 import android.view.MotionEvent
+import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
@@ -37,7 +39,23 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
     private var descriptorWriteCount = 0
     private val queue = ArrayBlockingQueue<Runnable>(10)
     private val threadPool = Executors.newSingleThreadScheduledExecutor()
-    private val handler = InnerHandler()
+    private var handlerThread : HandlerThread? = null
+    private lateinit var handler : Handler
+
+    private inner class HandlerThread : Thread(), Closeable {
+        init {
+            start()
+        }
+        override fun run() {
+            Looper.prepare()
+            handler = InnerHandler()
+            Looper.loop()
+        }
+        override fun close() {
+            Looper.myLooper().quitSafely()
+            join()
+        }
+    }
 
     private class InnerHandler : Handler() {
         override fun handleMessage(message : Message) {
@@ -221,7 +239,19 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
     init {
         Log.i(TAG, "Creating Linc thermometer BLE device")
+
+        if(currentThreadHasLooper()) {
+            handler = InnerHandler()
+        } else {
+            handlerThread = HandlerThread()
+        }
+
         bluetoothGattCb = thermometerBluetoothGattCb
+    }
+
+    override fun close() {
+        super.close()
+        handlerThread?.close()
     }
 
     private fun setupThermometer(gatt : BluetoothGatt) {
@@ -321,5 +351,9 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
     private fun readRemoteRssi(gatt : BluetoothGatt) {
         gatt.readRemoteRssi()
+    }
+
+    private fun currentThreadHasLooper(): Boolean {
+        return Looper.myLooper() != null
     }
 }
