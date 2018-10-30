@@ -1,1 +1,1 @@
-include ':app', ':ble', ':utils'
+include ':app', ':ble', ':utils', ':audionlp'

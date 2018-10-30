@@ -3,7 +3,7 @@
           package="io.padium.linc.prototype">
 
     <application>
-        <uses-library android:name="com.google.android.things"/>
+        <!--<uses-library android:name="com.google.android.things"/>-->
 
         <activity android:name=".MainActivity">
             <intent-filter>
@@ -26,5 +26,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
 </manifest>

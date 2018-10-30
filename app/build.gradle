@@ -52,5 +52,6 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.11.0'
     implementation "org.jetbrains.anko:anko:0.10.6"
     implementation project(':ble')
+    implementation project(':audionlp')
     implementation project(':utils')
 }

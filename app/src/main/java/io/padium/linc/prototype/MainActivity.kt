@@ -1,9 +1,14 @@
 package io.padium.linc.prototype
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.Toast
+import io.padium.audionlp.AudioProcessorLocation
+import io.padium.audionlp.AudioToText
 import io.padium.linc.prototype.ble.LincBleDeviceEvent
 import io.padium.linc.prototype.ble.ScaleLincBleDevice
 import io.padium.linc.prototype.ble.ThermometerLincBleDevice
@@ -11,6 +16,8 @@ import io.padium.utils.tcp.TcpCallback
 import io.padium.utils.tcp.TcpConnection
 import io.padium.utils.tcp.TcpUtils
 import org.jetbrains.anko.doAsync
+import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Main activity for Linc bluetooth le test application.
@@ -19,6 +26,9 @@ import org.jetbrains.anko.doAsync
 class MainActivity : Activity() {
     companion object {
         private val TAG = MainActivity::class.java.simpleName
+        private const val BLE_SCALE_PERMISSION = 1000
+        private const val BLE_THERMOMETER_PERMISSION = 1001
+        private const val MICROPHONE_PERMISSION = 1002
     }
 
     private val bleDeviceEvent  = object : LincBleDeviceEvent {
@@ -36,6 +46,7 @@ class MainActivity : Activity() {
 
     private val lincBleScale = ScaleLincBleDevice(this, bleDeviceEvent)
     private val lincBleThermometer = ThermometerLincBleDevice(this, bleDeviceEvent)
+    private val audioToText = AudioToText(this, AudioProcessorLocation.CLOUD)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,17 +55,70 @@ class MainActivity : Activity() {
         val lincScaleBluetoothButton : Button = findViewById(R.id.lincScaleBluetoothButton)
         lincScaleBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE scale...")
-            lincBleScale.open()
+            if(isThingsDevice()) {
+                lincBleScale.open()
+            } else {
+                Toast.makeText(this, "This app needs to access Bluetooth", Toast.LENGTH_SHORT).show()
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), BLE_SCALE_PERMISSION)
+            }
         }
 
         val lincThermometerBluetoothButton : Button = findViewById(R.id.lincThermometerBluetoothButton)
         lincThermometerBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE thermometer...")
-            lincBleThermometer.open()
+            if(isThingsDevice()) {
+                lincBleThermometer.open()
+            } else {
+                Toast.makeText(this, "This app needs to access Bluetooth", Toast.LENGTH_SHORT).show()
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), BLE_THERMOMETER_PERMISSION)
+            }
         }
 
-        doTcpTest()
-        doTcpTest(true)
+        val audioNlpButton : Button = findViewById(R.id.audioNlpButton)
+        audioNlpButton.setOnClickListener {
+            Log.i(TAG, "Audio NLP starting...")
+            if(isThingsDevice()) {
+                doAudioNlp()
+            } else {
+                Toast.makeText(this, "This app needs to record audio through the microphone", Toast.LENGTH_SHORT).show()
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION)
+            }
+        }
+
+        val tcpButton : Button = findViewById(R.id.tcpButton)
+        tcpButton.setOnClickListener {
+            doTcpTest(false)
+            doTcpTest(true)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>?, grantResults: IntArray?) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if(null != grantResults && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            when (requestCode) {
+                BLE_SCALE_PERMISSION -> lincBleScale.open()
+                BLE_THERMOMETER_PERMISSION -> lincBleThermometer.open()
+                MICROPHONE_PERMISSION -> doAudioNlp()
+            }
+        }
+    }
+
+    private fun isThingsDevice(): Boolean {
+        val pm = applicationContext.packageManager
+        return pm.hasSystemFeature(PackageManager.FEATURE_EMBEDDED)
+    }
+
+    private fun doAudioNlp() {
+        doAsync {
+            try {
+                Log.i(TAG, "Starting text from NLP processing")
+                //val text = audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"))
+                val text = audioToText.getMicrophoneText(5, TimeUnit.SECONDS)
+                Log.i(TAG, "Finished text from NLP processing is $text")
+            } catch(e: Exception) {
+                Log.e(TAG, e.message, e)
+            }
+        }
     }
 
     private fun doTcpTest(tls : Boolean = false) {
