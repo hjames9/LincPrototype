@@ -2,6 +2,8 @@
 
 grammar cooking;
 
+<navigate> = ((go) (back | forward)) | back | forward | next | previous;
+<repeat> = repeat | say again | what did you say | huh;
 
 <cook> =    alarm       |
             allergic    |
