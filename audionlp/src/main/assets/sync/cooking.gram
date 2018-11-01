@@ -1,0 +1,58 @@
+#JSGF V1.0;
+
+grammar cooking;
+
+<cook> =  thermometer	|
+          scale			|
+          bluetooth		|
+          next			|
+          forward		|
+          recipe		|
+          part			|
+          section		|
+          tablespoon	|
+          teaspoon		|
+          chicken		|
+          lamb			|
+          turkey		|
+          rice			|
+          potatoes		|
+          pause			|
+          hello			|
+          full			|
+          empty			|
+          spoon			|
+          fork			|
+          straw			|
+          linc			|
+          like          |
+          style         |
+          stop          |
+          start         |
+          time          |
+          what          |
+          who           |
+          why           |
+          how           |
+          are           |
+          is            |
+          prepare       |
+          cook          |
+          cooking       |
+          alarm         |
+          burning       |
+          oil           |
+          spicy         |
+          hot           |
+          cold          |
+          calories      |
+          burnt         |
+          fire          |
+          smoke         |
+          step          |
+          instruction   |
+          ingredient    |
+          allergy       |
+          allergic      ;
+
+public <cooking> = <cook>+;

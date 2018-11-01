@@ -5,9 +5,8 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder.AudioSource
 import android.util.Log
-import edu.cmu.pocketsphinx.RecognitionListener
-import edu.cmu.pocketsphinx.Hypothesis
-import edu.cmu.pocketsphinx.SpeechRecognizer
+import edu.cmu.pocketsphinx.*
+import edu.cmu.pocketsphinx.Decoder.defaultConfig
 import io.padium.utils.http.HttpMethod
 import io.padium.utils.http.HttpUtils
 import org.json.JSONObject
@@ -50,6 +49,13 @@ class AudioToText(private val context: Context, private val location : AudioProc
         //Local NLP process
         private const val SPHINX_ACOUSTIC_MODEL_PATH = "en-us-ptm"
         private const val SPHINX_DICTIONARY_PATH = "cmudict-en-us.dict"
+        private const val KWS_SEARCH = "wakeup"
+        private const val FORECAST_SEARCH = "forecast"
+        private const val DIGITS_SEARCH = "digits"
+        private const val PHONE_SEARCH = "phones"
+        private const val ALLWORDS_SEARCH = "allwords"
+        private const val COOKING_SEARCH = "cooking"
+        private const val KEYPHRASE = "oh mighty computer"
     }
 
     //Android audio recording
@@ -57,24 +63,35 @@ class AudioToText(private val context: Context, private val location : AudioProc
     private val buffer = ShortArray(BUFFER_SIZE / 4)
 
     //Local NLP processing
+    private lateinit var decoder : Decoder
+    private lateinit var config : Config
+    private var localListener: AudioToTextListener? = null
     private lateinit var recognizer : SpeechRecognizer
     private val recognizerListener = object : RecognitionListener {
         override fun onEndOfSpeech() {
+            localListener?.onEnd()
         }
 
         override fun onError(e: Exception?) {
+            localListener?.onError(e as java.lang.Exception)
         }
 
         override fun onResult(hypothesis: Hypothesis?) {
+            val result = if(null != hypothesis) { hypothesis.hypstr } else ""
+            localListener?.onResult(result)
         }
 
         override fun onPartialResult(hypothesis: Hypothesis?) {
+            val result = if(null != hypothesis) { hypothesis.hypstr } else ""
+            localListener?.onPartialResult(result)
         }
 
         override fun onTimeout() {
+            localListener?.onError(Exception("Timeout occurred"))
         }
 
         override fun onBeginningOfSpeech() {
+            localListener?.onStart()
         }
     }
 
@@ -105,11 +122,39 @@ class AudioToText(private val context: Context, private val location : AudioProc
     init {
         when(location) {
             AudioProcessorLocation.LOCAL -> {
+                val assets = Assets(context)
+                assets.syncAssets()
+
+                //Testing manually decoding
+                System.loadLibrary("pocketsphinx_jni")
+                config = defaultConfig()
+                config.setString("-hmm", File(assets.externalDir, SPHINX_ACOUSTIC_MODEL_PATH).path)
+                config.setString("-dict", File(assets.externalDir, SPHINX_DICTIONARY_PATH).path)
+                decoder = Decoder(config)
+
                 recognizer = defaultSetup()
-                        .setAcousticModel(File(SPHINX_ACOUSTIC_MODEL_PATH))
-                        .setDictionary(File(SPHINX_DICTIONARY_PATH))
+                        .setAcousticModel(File(assets.externalDir, SPHINX_ACOUSTIC_MODEL_PATH))
+                        .setDictionary(File(assets.externalDir, SPHINX_DICTIONARY_PATH))
                         .recognizer
                 recognizer.addListener(recognizerListener)
+
+                // Create keyword-activation search
+                recognizer.addKeyphraseSearch(KWS_SEARCH, KEYPHRASE)
+
+                // Create grammar-based searches
+                recognizer.addGrammarSearch(DIGITS_SEARCH, File(assets.externalDir, "digits.gram"))
+
+                // Create grammar-based searches
+                recognizer.addGrammarSearch(ALLWORDS_SEARCH, File(assets.externalDir, "allwords.gram"))
+
+                // Create grammar-based searches
+                recognizer.addGrammarSearch(COOKING_SEARCH, File(assets.externalDir, "cooking.gram"))
+
+                // Create language model search
+                recognizer.addNgramSearch(FORECAST_SEARCH, File(assets.externalDir, "weather.dmp"))
+
+                // Create phonetic search
+                recognizer.addAllphoneSearch(PHONE_SEARCH, File(assets.externalDir, "en-phone.dmp"))
             }
             AudioProcessorLocation.CLOUD -> {
                 //Create initial connection
@@ -123,6 +168,20 @@ class AudioToText(private val context: Context, private val location : AudioProc
         running.set(false)
         keepAliveThread.interrupt()
         keepAliveThread.join()
+        recognizer.removeListener(recognizerListener)
+    }
+
+    @Throws(AudioException::class)
+    fun startMicrophoneText(listener: AudioToTextListener) {
+        localListener = listener
+        recognizer.startListening(COOKING_SEARCH)
+    }
+
+    @Throws(AudioException::class)
+    fun stopMicrophoneText() {
+        if(recognizer.stop() || recognizer.cancel()) {
+            localListener = null
+        }
     }
 
     @Throws(AudioException::class)

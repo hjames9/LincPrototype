@@ -9,6 +9,8 @@ import android.widget.Button
 import android.widget.Toast
 import io.padium.audionlp.AudioProcessorLocation
 import io.padium.audionlp.AudioToText
+import io.padium.audionlp.AudioToTextListener
+import io.padium.linc.prototype.ble.LincBleDevice
 import io.padium.linc.prototype.ble.LincBleDeviceEvent
 import io.padium.linc.prototype.ble.ScaleLincBleDevice
 import io.padium.linc.prototype.ble.ThermometerLincBleDevice
@@ -44,13 +46,18 @@ class MainActivity : Activity() {
         }
     }
 
-    private val lincBleScale = ScaleLincBleDevice(this, bleDeviceEvent)
-    private val lincBleThermometer = ThermometerLincBleDevice(this, bleDeviceEvent)
-    private val audioToText = AudioToText(this, AudioProcessorLocation.CLOUD)
+    private lateinit var lincBleScale : LincBleDevice
+    private lateinit var lincBleThermometer : LincBleDevice
+    private lateinit var audioToText : AudioToText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        lincBleScale = ScaleLincBleDevice(this, bleDeviceEvent)
+        lincBleThermometer = ThermometerLincBleDevice(this, bleDeviceEvent)
+        audioToText = AudioToText(this, AudioProcessorLocation.LOCAL)
+        //audioToText = AudioToText(this, AudioProcessorLocation.CLOUD)
 
         val lincScaleBluetoothButton : Button = findViewById(R.id.lincScaleBluetoothButton)
         lincScaleBluetoothButton.setOnClickListener {
@@ -113,8 +120,32 @@ class MainActivity : Activity() {
             try {
                 Log.i(TAG, "Starting text from NLP processing")
                 //val text = audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"))
-                val text = audioToText.getMicrophoneText(5, TimeUnit.SECONDS)
-                Log.i(TAG, "Finished text from NLP processing is $text")
+                //val text = audioToText.getMicrophoneText(5, TimeUnit.SECONDS)
+
+                audioToText.startMicrophoneText(object : AudioToTextListener {
+                    override fun onStart() {
+                        Log.i(TAG, "Started NLP processing")
+                    }
+
+                    override fun onResult(result: String) {
+                        Log.i(TAG, "Finished text from NLP processing is \"$result\"")
+                    }
+
+                    override fun onPartialResult(result: String) {
+                        Log.i(TAG, "Partial text from NLP processing is \"$result\"")
+                    }
+
+                    override fun onEnd() {
+                        Log.i(TAG, "Finished NLP processing")
+                    }
+
+                    override fun onError(exp: Exception) {
+                        Log.e(TAG, exp.message, exp)
+                    }
+                })
+                Thread.sleep(5000)
+                audioToText.stopMicrophoneText()
+                //Log.i(TAG, "Finished text from NLP processing is \"$text\"")
             } catch(e: Exception) {
                 Log.e(TAG, e.message, e)
             }
