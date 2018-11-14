@@ -8,6 +8,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import io.padium.audionlp.AudioProcessorLocation
+import io.padium.audionlp.AudioTextResult
 import io.padium.audionlp.AudioToText
 import io.padium.audionlp.AudioToTextListener
 import io.padium.linc.prototype.ble.LincBleDevice
@@ -56,8 +57,27 @@ class MainActivity : Activity() {
 
         lincBleScale = ScaleLincBleDevice(this, bleDeviceEvent)
         lincBleThermometer = ThermometerLincBleDevice(this, bleDeviceEvent)
-        audioToText = AudioToText(this, AudioProcessorLocation.LOCAL)
-        //audioToText = AudioToText(this, AudioProcessorLocation.CLOUD)
+        audioToText = AudioToText(this, object : AudioToTextListener {
+            override fun onStart(processorLocation: AudioProcessorLocation) {
+                Log.i(TAG, "Started NLP processing on $processorLocation")
+            }
+
+            override fun onResult(processorLocation: AudioProcessorLocation, result: AudioTextResult) {
+                Log.i(TAG, "Finished text from NLP processing on $processorLocation has score[${result.score}], prob[${result.probability}] and is \"${result.phrase}\"")
+            }
+
+            override fun onPartialResult(processorLocation: AudioProcessorLocation, result: AudioTextResult) {
+                Log.i(TAG, "Partial text from NLP processing on $processorLocation has score[${result.score}], prob[${result.probability}] and is \"${result.phrase}\"")
+            }
+
+            override fun onEnd(processorLocation: AudioProcessorLocation) {
+                Log.i(TAG, "Finished NLP processing on $processorLocation")
+            }
+
+            override fun onError(processorLocation: AudioProcessorLocation, exp: Exception) {
+                Log.e(TAG, "Error in NLP processing on $processorLocation with ${exp.message}", exp)
+            }
+        })
 
         val lincScaleBluetoothButton : Button = findViewById(R.id.lincScaleBluetoothButton)
         lincScaleBluetoothButton.setOnClickListener {
@@ -118,34 +138,8 @@ class MainActivity : Activity() {
     private fun doAudioNlp() {
         doAsync {
             try {
-                Log.i(TAG, "Starting text from NLP processing")
-                //val text = audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"))
-                //val text = audioToText.getMicrophoneText(5, TimeUnit.SECONDS)
-
-                audioToText.startMicrophoneText(object : AudioToTextListener {
-                    override fun onStart() {
-                        Log.i(TAG, "Started NLP processing")
-                    }
-
-                    override fun onResult(result: String) {
-                        Log.i(TAG, "Finished text from NLP processing is \"$result\"")
-                    }
-
-                    override fun onPartialResult(result: String) {
-                        Log.i(TAG, "Partial text from NLP processing is \"$result\"")
-                    }
-
-                    override fun onEnd() {
-                        Log.i(TAG, "Finished NLP processing")
-                    }
-
-                    override fun onError(exp: Exception) {
-                        Log.e(TAG, exp.message, exp)
-                    }
-                })
-                Thread.sleep(5000)
-                audioToText.stopMicrophoneText()
-                //Log.i(TAG, "Finished text from NLP processing is \"$text\"")
+                //audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"), AudioProcessorLocation.CLOUD)
+                audioToText.getMicrophoneTextTimed(5, TimeUnit.SECONDS, AudioProcessorLocation.LOCAL)
             } catch(e: Exception) {
                 Log.e(TAG, e.message, e)
             }

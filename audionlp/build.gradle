@@ -49,13 +49,12 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
     //implementation "edu.cmu.pocketsphinx.android:pocketsphinx-android:5prealpha@aar"
     implementation "cesine.educmupocketsphinx:pocketsphinx-android:5prealpha@aar"
-    implementation "com.kailashdabhi:om-recorder:1.1.5"
     implementation project(path: ':utils')
 }
 
 def libraryGroupId = 'io.padium.audionlp'
 def libraryArtifactId = 'audionlp'
-def libraryVersion = '0.0.2'
+def libraryVersion = '0.0.4'
 
 publishing {
     publications {
@@ -63,8 +62,27 @@ publishing {
             groupId libraryGroupId
             version libraryVersion
             artifactId libraryArtifactId
-
             artifact("$buildDir/outputs/aar/${artifactId}-release.aar")
+
+            pom.withXml {
+                def dependencies = asNode().appendNode('dependencies')
+                configurations.implementation.allDependencies.each {
+                    if (it.group == null || it.name == null || it.version == null) {
+                        return
+                    }
+                    if(!(it instanceof ExternalModuleDependency)) {
+                        return
+                    }
+                    if (it.group == "org.jetbrains.kotlin" || it.group == "com.android.support") {
+                        return
+                    }
+
+                    def dependency = dependencies.appendNode('dependency')
+                    dependency.appendNode('groupId', it.group)
+                    dependency.appendNode('artifactId', it.name)
+                    dependency.appendNode('version', it.version)
+                }
+            }
         }
     }
 }

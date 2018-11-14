@@ -5,287 +5,153 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder.AudioSource
 import android.util.Log
-import edu.cmu.pocketsphinx.*
-import edu.cmu.pocketsphinx.Decoder.defaultConfig
-import io.padium.utils.http.HttpMethod
-import io.padium.utils.http.HttpUtils
-import org.json.JSONObject
-import java.nio.file.Files
+import io.padium.audionlp.impl.AudioParameters
 import java.util.concurrent.TimeUnit
-import edu.cmu.pocketsphinx.SpeechRecognizerSetup.defaultSetup
-import java.io.Closeable
-import java.io.DataOutputStream
-import java.io.File
-import java.io.OutputStream
+import io.padium.audionlp.impl.PocketSphinxAudioToTextImpl
+import io.padium.audionlp.impl.WitAudioToTextImpl
+import io.padium.audionlp.wav.WavFile
+import java.io.*
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 
 enum class AudioProcessorLocation {
     LOCAL,
-    CLOUD
+    CLOUD,
+    ANY
 }
 
-class AudioToText(private val context: Context, private val location : AudioProcessorLocation)
-    : Closeable {
+class AudioToText(context: Context, val listener: AudioToTextListener): Closeable {
     companion object {
         private val TAG = AudioToText::class.java.simpleName
-
-        //Android audio recording
-        private const val RECORDER_SAMPLERATE = 8000
-        private const val RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO
-        private const val RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT
-        private val BUFFER_SIZE = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING)
-
-        //Cloud NLP processing
-        private const val WIT_BASE_URL = "https://api.wit.ai"
-        private const val WIT_API_VERSION = "20170307"
-        private const val JSON_CONTENT_TYPE = "application/json"
-        private const val WAV_CONTENT_TYPE = "audio/wav"
-        private const val RAW_CONTENT_TYPE = "audio/raw"
-        private const val AUTHORIZATION_HEADER = "Authorization"
-        private const val TRANSFER_ENCODING_HEADER = "Transfer-Encoding"
-        private const val TOKEN = "NWFPVCTESQZAVPRXA5AZPK6MW7PYCHDQ"
-
-        //Local NLP process
-        private const val SPHINX_ACOUSTIC_MODEL_PATH = "en-us-ptm"
-        private const val SPHINX_DICTIONARY_PATH = "cmudict-en-us.dict"
-        private const val KWS_SEARCH = "wakeup"
-        private const val FORECAST_SEARCH = "forecast"
-        private const val DIGITS_SEARCH = "digits"
-        private const val PHONE_SEARCH = "phones"
-        private const val ALLWORDS_SEARCH = "allwords"
-        private const val COOKING_SEARCH = "cooking"
-        private const val KEYPHRASE = "oh mighty computer"
     }
 
-    //Android audio recording
-    private lateinit var audioRecord : AudioRecord
-    private val buffer = ShortArray(BUFFER_SIZE / 4)
-
-    //Local NLP processing
-    private lateinit var decoder : Decoder
-    private lateinit var config : Config
-    private var localListener: AudioToTextListener? = null
-    private lateinit var recognizer : SpeechRecognizer
-    private val recognizerListener = object : RecognitionListener {
-        override fun onEndOfSpeech() {
-            localListener?.onEnd()
-        }
-
-        override fun onError(e: Exception?) {
-            localListener?.onError(e as java.lang.Exception)
-        }
-
-        override fun onResult(hypothesis: Hypothesis?) {
-            val result = if(null != hypothesis) { hypothesis.hypstr } else ""
-            localListener?.onResult(result)
-        }
-
-        override fun onPartialResult(hypothesis: Hypothesis?) {
-            val result = if(null != hypothesis) { hypothesis.hypstr } else ""
-            localListener?.onPartialResult(result)
-        }
-
-        override fun onTimeout() {
-            localListener?.onError(Exception("Timeout occurred"))
-        }
-
-        override fun onBeginningOfSpeech() {
-            localListener?.onStart()
-        }
-    }
-
-    //Cloud NLP processing
-    private val keepAliveThread = Thread {
-        try {
-            val keepAliveUrl = "$WIT_BASE_URL/favicon.ico"
-            while (running.get()) {
-                val elaspedTime = System.currentTimeMillis() - lastRequestTime.get()
-                if (elaspedTime > 30000) {
-                    val response = HttpUtils.requestText(keepAliveUrl, HttpMethod.HEAD)
-                    lastRequestTime.set(System.currentTimeMillis())
-                    when {
-                        HttpUtils.isSuccess(response.first) -> Log.i(TAG, response.second)
-                        HttpUtils.isError(response.first) -> Log.e(TAG, response.second)
-                        else -> Log.e(TAG, "Unknown response code ${response.first} and message ${response.second}")
-                    }
-                }
-                Thread.sleep(3000)
-            }
-        } catch(e : InterruptedException) {
-            Log.i(TAG, e.message)
-        }
-    }
-    private var lastRequestTime = AtomicLong(0)
-    private val running = AtomicBoolean(false)
-
-    init {
-        when(location) {
-            AudioProcessorLocation.LOCAL -> {
-                val assets = Assets(context)
-                assets.syncAssets()
-
-                //Testing manually decoding
-                System.loadLibrary("pocketsphinx_jni")
-                config = defaultConfig()
-                config.setString("-hmm", File(assets.externalDir, SPHINX_ACOUSTIC_MODEL_PATH).path)
-                config.setString("-dict", File(assets.externalDir, SPHINX_DICTIONARY_PATH).path)
-                decoder = Decoder(config)
-
-                recognizer = defaultSetup()
-                        .setAcousticModel(File(assets.externalDir, SPHINX_ACOUSTIC_MODEL_PATH))
-                        .setDictionary(File(assets.externalDir, SPHINX_DICTIONARY_PATH))
-                        .recognizer
-                recognizer.addListener(recognizerListener)
-
-                // Create keyword-activation search
-                recognizer.addKeyphraseSearch(KWS_SEARCH, KEYPHRASE)
-
-                // Create grammar-based searches
-                recognizer.addGrammarSearch(DIGITS_SEARCH, File(assets.externalDir, "digits.gram"))
-
-                // Create grammar-based searches
-                recognizer.addGrammarSearch(ALLWORDS_SEARCH, File(assets.externalDir, "allwords.gram"))
-
-                // Create grammar-based searches
-                recognizer.addGrammarSearch(COOKING_SEARCH, File(assets.externalDir, "cooking.gram"))
-
-                // Create language model search
-                recognizer.addNgramSearch(FORECAST_SEARCH, File(assets.externalDir, "weather.dmp"))
-
-                // Create phonetic search
-                recognizer.addAllphoneSearch(PHONE_SEARCH, File(assets.externalDir, "en-phone.dmp"))
-            }
-            AudioProcessorLocation.CLOUD -> {
-                //Create initial connection
-                running.set(true)
-                keepAliveThread.start()
-            }
-        }
-    }
+    private val recording = AtomicBoolean(false)
+    private val pocketSphinx = PocketSphinxAudioToTextImpl(context, recording)
+    private val wit = WitAudioToTextImpl(context, recording)
+    private val scheduledExecutor = Executors.newSingleThreadScheduledExecutor()
+    private val executor = Executors.newFixedThreadPool(2)
 
     override fun close() {
-        running.set(false)
-        keepAliveThread.interrupt()
-        keepAliveThread.join()
-        recognizer.removeListener(recognizerListener)
+        wit.close()
+        pocketSphinx.close()
     }
 
     @Throws(AudioException::class)
-    fun startMicrophoneText(listener: AudioToTextListener) {
-        localListener = listener
-        recognizer.startListening(COOKING_SEARCH)
+    fun startMicrophoneText(processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY): Long {
+        recording.set(true)
+        return processAudioRecording(processorLocation)
     }
 
     @Throws(AudioException::class)
     fun stopMicrophoneText() {
-        if(recognizer.stop() || recognizer.cancel()) {
-            localListener = null
+        recording.set(false)
+    }
+
+    @Throws(AudioException::class)
+    fun getMicrophoneTextTimed(listenTime: Long, timeUnit: TimeUnit,
+                               processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY): Long {
+        recording.set(true)
+        scheduledExecutor.schedule({recording.set(false)}, listenTime, timeUnit)
+        return processAudioRecording(processorLocation)
+    }
+
+    @Throws(AudioException::class)
+    fun getWavFileText(file : File, processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY) {
+        val audioQueues = mutableListOf<LinkedBlockingQueue<Pair<ShortArray, Int>>>()
+        val parameters = AudioParameters(processorLocation)
+        val wavFile = WavFile(file)
+
+        parameters.endian = ByteOrder.LITTLE_ENDIAN
+        parameters.sampleRate = wavFile.sampleRate
+        parameters.encodingSize = when(wavFile.encodingSize.toInt()) {
+            8 -> AudioFormat.ENCODING_PCM_8BIT
+            16 -> AudioFormat.ENCODING_PCM_16BIT
+            else -> AudioFormat.ENCODING_DEFAULT
+        }
+        parameters.channel = when(wavFile.isMono) {
+            true -> AudioFormat.CHANNEL_IN_MONO
+            false -> AudioFormat.CHANNEL_IN_STEREO
+        }
+
+        if(processorLocation == AudioProcessorLocation.LOCAL || processorLocation == AudioProcessorLocation.ANY) {
+            audioQueues.add(pocketSphinx.audioQueue)
+            executor.submit {pocketSphinx.process(listener, parameters)}
+        }
+
+        if(processorLocation == AudioProcessorLocation.CLOUD || processorLocation == AudioProcessorLocation.ANY) {
+            audioQueues.add(wit.audioQueue)
+            executor.submit {wit.process(listener, parameters)}
+        }
+
+        Log.i(TAG, "Processing wav file $wavFile")
+        Log.i(TAG, "Processing parameters $parameters")
+
+        //Get short array
+        val buffer = ShortArray(wavFile.dataSize / 2)
+        ByteBuffer.wrap(wavFile.data).order(ByteOrder.BIG_ENDIAN).asShortBuffer().get(buffer)
+
+        audioQueues.forEach { audioQueue ->
+            audioQueue.put(Pair(buffer, buffer.size))
         }
     }
 
     @Throws(AudioException::class)
-    fun getMicrophoneText(listenTime: Long, timeUnit: TimeUnit): String {
+    private fun processAudioRecording(processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY): Long {
+        val audioQueues = mutableListOf<LinkedBlockingQueue<Pair<ShortArray, Int>>>()
+        val parameters = AudioParameters(processorLocation)
+
+        if(processorLocation == AudioProcessorLocation.LOCAL || processorLocation == AudioProcessorLocation.ANY) {
+            audioQueues.add(pocketSphinx.audioQueue)
+            executor.submit {pocketSphinx.process(listener, parameters)}
+        }
+
+        if(processorLocation == AudioProcessorLocation.CLOUD || processorLocation == AudioProcessorLocation.ANY) {
+            audioQueues.add(wit.audioQueue)
+            executor.submit {wit.process(listener, parameters)}
+        }
+
+        val bufferSize = AudioRecord.getMinBufferSize(parameters.sampleRate, parameters.channel, parameters.encodingSize)
+        val buffer = ShortArray(bufferSize / 4)
+
+        val audioRecord = AudioRecord(AudioSource.VOICE_RECOGNITION, parameters.sampleRate, parameters.channel,
+                parameters.encodingSize, bufferSize)
+
+        val startTime = System.currentTimeMillis()
         try {
-            if(location == AudioProcessorLocation.LOCAL)
-                throw AudioException("Only cloud processing is currently supported")
-
-            audioRecord = AudioRecord(AudioSource.MIC, RECORDER_SAMPLERATE,
-                    RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING, BUFFER_SIZE)
-
-            val contentType = "$RAW_CONTENT_TYPE;encoding=signed-integer;bits=16;rate=$RECORDER_SAMPLERATE;endian=big"
-            val streamer = { stream: OutputStream -> Unit
-                val startTime : Long = System.currentTimeMillis() / 1000
-                var elaspedTime : Long = 0
-                val dos = DataOutputStream(stream)
-
-                audioRecord.startRecording()
-                while(timeUnit.toSeconds(listenTime) > elaspedTime) {
-                    val result = audioRecord.read(buffer, 0, BUFFER_SIZE / 4, AudioRecord.READ_BLOCKING)
-                    when (result) {
-                        AudioRecord.ERROR -> throw AudioException("AudioRecord reading error")
-                        AudioRecord.ERROR_BAD_VALUE -> throw AudioException("AudioRecord invalid parameters")
-                        AudioRecord.ERROR_DEAD_OBJECT -> throw AudioException("AudioRecord not valid anymore")
-                        AudioRecord.ERROR_INVALID_OPERATION -> throw AudioException("AudioRecord isn't properly initialized")
-                        else -> {
-                            for(iter in 0 until result) {
-                                dos.writeShort(buffer[iter].toInt())
+            audioRecord.startRecording()
+            while (recording.get()) {
+                val result = audioRecord.read(buffer, 0, bufferSize / 4, AudioRecord.READ_BLOCKING)
+                var brokenQueue = 0
+                when (result) {
+                    AudioRecord.ERROR -> throw AudioException("AudioRecord reading error")
+                    AudioRecord.ERROR_BAD_VALUE -> throw AudioException("AudioRecord invalid parameters")
+                    AudioRecord.ERROR_DEAD_OBJECT -> throw AudioException("AudioRecord not valid anymore")
+                    AudioRecord.ERROR_INVALID_OPERATION -> throw AudioException("AudioRecord isn't properly initialized")
+                    else -> {
+                        audioQueues.forEach { audioQueue ->
+                            if (audioQueue.remainingCapacity() - 1 <= 0) {
+                                brokenQueue++
+                            } else {
+                                audioQueue.put(Pair(buffer, result))
                             }
                         }
                     }
-                    elaspedTime = (System.currentTimeMillis() / 1000) - startTime
                 }
-                audioRecord.stop()
-                dos.close()
+
+                if (brokenQueue >= audioQueues.size) {
+                    Log.e(TAG, "Queue capacities have been reached")
+                    break
+                }
             }
-            return processCloudInputStream(streamer, contentType)
         } finally {
             if(AudioRecord.RECORDSTATE_RECORDING == audioRecord.recordingState) {
                 audioRecord.stop()
             }
             audioRecord.release()
-        }
-    }
-
-    @Throws(AudioException::class)
-    fun getWavFileText(file : File): String {
-        return when(location) {
-            AudioProcessorLocation.LOCAL -> throw AudioException("Only cloud processing is currently supported")
-            AudioProcessorLocation.CLOUD -> processCloudInputStream(Files.readAllBytes(file.toPath()), WAV_CONTENT_TYPE)
-        }
-    }
-
-    private fun getResponseContentType(headers : Map<String, List<String>>): String? {
-        val header = headers["Content-Type"]
-        return when(null != header && !header.isEmpty()) {
-            true -> header?.get(0)
-            false -> ""
-        }
-    }
-
-    @Throws(AudioException::class)
-    private fun processCloudInputStream(streamer: (stream: OutputStream) -> Unit, contentType: String)
-            : String {
-        val url = "$WIT_BASE_URL/speech${HttpUtils.buildRequestParameters(mapOf("v" to WIT_API_VERSION))}"
-
-        val requestHeaders = mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN",
-                TRANSFER_ENCODING_HEADER to "chunked")
-
-        val response = HttpUtils.requestBinary(url, HttpMethod.POST, contentType,
-                streamer, requestHeaders)
-
-        return processCloudResponse(response)
-    }
-
-    @Throws(AudioException::class)
-    private fun processCloudInputStream(fileData : ByteArray, contentType : String): String {
-        return processCloudInputStream(fileData, 0, fileData.size, contentType)
-    }
-
-    @Throws(AudioException::class)
-    private fun processCloudInputStream(data : ByteArray, offset : Int, byteCount: Int,
-                                        contentType : String): String {
-        val url = "$WIT_BASE_URL/speech${HttpUtils.buildRequestParameters(mapOf("v" to WIT_API_VERSION))}"
-
-        val requestHeaders = mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN")
-
-        val response = HttpUtils.requestBinary(url, HttpMethod.POST, contentType,
-                data, offset, byteCount, requestHeaders)
-
-        return processCloudResponse(response)
-    }
-
-    @Throws(AudioException::class)
-    private fun processCloudResponse(response: Triple<Int, String?, Map<String, List<String>>>): String {
-        lastRequestTime.set(System.currentTimeMillis())
-
-        if(HttpUtils.isSuccess(response.first) && JSON_CONTENT_TYPE == getResponseContentType(response.third)) {
-            val json = JSONObject(response.second)
-            return json.get("_text").toString()
-        } else if(HttpUtils.isError(response.first)) {
-            throw AudioException("Error accessing cloud with code ${response.first}, response ${response.second}")
-        } else {
-            throw AudioException("Unknown response accessing cloud with code ${response.first}, response ${response.second}")
+            return System.currentTimeMillis() - startTime
         }
     }
 }

@@ -106,7 +106,7 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
                 }
 
                 if (null != values) {
-                    var intValue1 = Integer.valueOf(Integer.parseInt(Integer.toHexString(values[0].toInt() and 255).toString(), 16))
+                    val intValue1 = Integer.valueOf(Integer.parseInt(Integer.toHexString(values[0].toInt() and 255).toString(), 16))
                     var intValue2 = Integer.valueOf(Integer.parseInt(Integer.toHexString(values[1].toInt() and 255).toString(), 16))
 
                     intValue2 += (intValue1 - (Math.floor(intValue1.toDouble() / 32.0) * 32.0).toInt()) * 256
