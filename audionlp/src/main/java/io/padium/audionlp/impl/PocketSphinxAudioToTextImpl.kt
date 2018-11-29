@@ -53,7 +53,7 @@ internal class PocketSphinxAudioToTextImpl(context: Context, private val recordi
         Log.i(TAG, "Initialized PocketSphinx speech recognition")
     }
 
-    override fun process(listener: AudioToTextListener, parameters: AudioParameters) {
+    override fun process(listener: AudioToTextListener, parameters: AudioParameters?) {
         try {
             decoder.startUtt()
             listener.onStart(AudioProcessorLocation.LOCAL)
@@ -65,7 +65,7 @@ internal class PocketSphinxAudioToTextImpl(context: Context, private val recordi
 
                     val hypothesis = decoder.hyp()
                     if (null != hypothesis) {
-                        val result = AudioTextResult(hypothesis.hypstr, hypothesis.bestScore, hypothesis.prob)
+                        val result = AudioTextResult(hypothesis.hypstr, hypothesis.bestScore.toDouble(), hypothesis.prob.toDouble())
                         listener.onPartialResult(AudioProcessorLocation.LOCAL, result)
                     }
                 }
@@ -74,7 +74,7 @@ internal class PocketSphinxAudioToTextImpl(context: Context, private val recordi
 
             val hypothesis = decoder.hyp()
             if(null != hypothesis) {
-                val result = AudioTextResult(hypothesis.hypstr, hypothesis.bestScore, hypothesis.prob)
+                val result = AudioTextResult(hypothesis.hypstr, hypothesis.bestScore.toDouble(), hypothesis.prob.toDouble())
                 listener.onResult(AudioProcessorLocation.LOCAL, result)
             }
             listener.onEnd(AudioProcessorLocation.LOCAL)

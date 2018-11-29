@@ -60,10 +60,10 @@ internal class WitAudioToTextImpl(context: Context, private val recording: Atomi
         Log.i(TAG, "Initialized WIT speech recognition")
     }
 
-    override fun process(listener: AudioToTextListener, parameters: AudioParameters) {
-        val contentType = "${parameters.contentType};encoding=${parameters.encoding};" +
-                "bits=${parameters.encodingSizeValue()};rate=${parameters.sampleRate};" +
-                "endian=${parameters.endianValue()}"
+    override fun process(listener: AudioToTextListener, parameters: AudioParameters?) {
+        val contentType = "${parameters?.contentType};encoding=${parameters?.encoding};" +
+                "bits=${parameters?.encodingSizeValue()};rate=${parameters?.sampleRate};" +
+                "endian=${parameters?.endianValue()}"
 
         val streamer = { stream: OutputStream -> Unit
             try {
@@ -82,7 +82,7 @@ internal class WitAudioToTextImpl(context: Context, private val recording: Atomi
 
         listener.onStart(AudioProcessorLocation.CLOUD)
         val result = processCloudInputStream(streamer, contentType)
-        listener.onResult(AudioProcessorLocation.CLOUD, AudioTextResult(result, 0, 0))
+        listener.onResult(AudioProcessorLocation.CLOUD, AudioTextResult(result, 0.0, 0.0))
         listener.onEnd(AudioProcessorLocation.CLOUD)
     }
 

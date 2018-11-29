@@ -166,7 +166,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                 return
             }
 
-            val buffer = characteristic?.value
+            val buffer = characteristic.value
             if(null != buffer) {
                 Log.d(TAG, "Received buffer sized ${buffer.size}")
             } else {

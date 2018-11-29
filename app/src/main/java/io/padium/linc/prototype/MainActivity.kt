@@ -138,12 +138,14 @@ class MainActivity : Activity() {
     private fun doAudioNlp() {
         doAsync {
             try {
-                //audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"), AudioProcessorLocation.CLOUD)
-                audioToText.getMicrophoneTextTimed(5, TimeUnit.SECONDS, AudioProcessorLocation.LOCAL)
+                audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"))
             } catch(e: Exception) {
                 Log.e(TAG, e.message, e)
             }
         }
+
+        //No asynchronous as the Google API complains..
+        audioToText.startMicrophoneTextTimed(5, TimeUnit.SECONDS)
     }
 
     private fun doTcpTest(tls : Boolean = false) {

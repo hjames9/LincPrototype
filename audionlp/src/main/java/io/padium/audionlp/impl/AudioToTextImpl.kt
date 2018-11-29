@@ -6,5 +6,5 @@ import java.util.concurrent.LinkedBlockingQueue
 
 internal interface AudioToTextImpl : Closeable {
     val audioQueue : LinkedBlockingQueue<Pair<ShortArray, Int>>
-    fun process(listener: AudioToTextListener, parameters: AudioParameters)
+    fun process(listener: AudioToTextListener, parameters: AudioParameters?)
 }

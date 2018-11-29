@@ -8,12 +8,10 @@ internal data class AudioParameters(private val processorLocation: AudioProcesso
     companion object {
         const val RAW_CONTENT_TYPE = "audio/raw"
         const val ENCODING_SIGNED_INTEGER = "signed-integer"
-        const val ENCODING_UNSIGNED_INTEGER = "unsigned-integer"
     }
 
     var sampleRate = when(processorLocation) {
         AudioProcessorLocation.LOCAL -> 16000
-        AudioProcessorLocation.ANY -> 16000
         AudioProcessorLocation.CLOUD -> 8000
     }
     var endian : ByteOrder = ByteOrder.BIG_ENDIAN

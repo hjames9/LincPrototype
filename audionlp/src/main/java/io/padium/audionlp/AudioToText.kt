@@ -5,10 +5,8 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder.AudioSource
 import android.util.Log
-import io.padium.audionlp.impl.AudioParameters
+import io.padium.audionlp.impl.*
 import java.util.concurrent.TimeUnit
-import io.padium.audionlp.impl.PocketSphinxAudioToTextImpl
-import io.padium.audionlp.impl.WitAudioToTextImpl
 import io.padium.audionlp.wav.WavFile
 import java.io.*
 import java.nio.ByteBuffer
@@ -16,12 +14,6 @@ import java.nio.ByteOrder
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
-
-enum class AudioProcessorLocation {
-    LOCAL,
-    CLOUD,
-    ANY
-}
 
 class AudioToText(context: Context, val listener: AudioToTextListener): Closeable {
     companion object {
@@ -31,18 +23,24 @@ class AudioToText(context: Context, val listener: AudioToTextListener): Closeabl
     private val recording = AtomicBoolean(false)
     private val pocketSphinx = PocketSphinxAudioToTextImpl(context, recording)
     private val wit = WitAudioToTextImpl(context, recording)
+    private val keenAsr = KeenASRAudioToTextImpl(context)
+    private val googleLocal = GoogleAudioToTextImpl(context, AudioProcessorLocation.LOCAL)
+    private val googleCloud = GoogleAudioToTextImpl(context, AudioProcessorLocation.CLOUD)
     private val scheduledExecutor = Executors.newSingleThreadScheduledExecutor()
     private val executor = Executors.newFixedThreadPool(2)
 
     override fun close() {
         wit.close()
         pocketSphinx.close()
+        keenAsr.close()
+        googleLocal.close()
+        googleCloud.close()
     }
 
     @Throws(AudioException::class)
-    fun startMicrophoneText(processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY): Long {
+    fun startMicrophoneText(processorServices: Set<AudioProcessorService> = setOf(AudioProcessorService.GOOGLE_LOCAL)): Long {
         recording.set(true)
-        return processAudioRecording(processorLocation)
+        return getMicrophoneText(processorServices)
     }
 
     @Throws(AudioException::class)
@@ -51,43 +49,58 @@ class AudioToText(context: Context, val listener: AudioToTextListener): Closeabl
     }
 
     @Throws(AudioException::class)
-    fun getMicrophoneTextTimed(listenTime: Long, timeUnit: TimeUnit,
-                               processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY): Long {
+    fun startMicrophoneTextTimed(listenTime: Long, timeUnit: TimeUnit,
+                                 processorServices: Set<AudioProcessorService> = setOf(AudioProcessorService.GOOGLE_LOCAL)): Long {
         recording.set(true)
         scheduledExecutor.schedule({recording.set(false)}, listenTime, timeUnit)
-        return processAudioRecording(processorLocation)
+        return getMicrophoneText(processorServices)
     }
 
     @Throws(AudioException::class)
-    fun getWavFileText(file : File, processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY) {
+    fun getWavFileText(file : File, processorServices: Set<AudioProcessorService>
+            = setOf(AudioProcessorService.POCKET_SPHINX, AudioProcessorService.WIT)) {
+        if(null != processorServices.find{it.handleRecording}) {
+            throw AudioException("Only processor that doesn't handle its own recording may be used")
+        } else if(processorServices.isEmpty()) {
+            throw AudioException("Must specify at least one audio processor")
+        }
+
         val audioQueues = mutableListOf<LinkedBlockingQueue<Pair<ShortArray, Int>>>()
-        val parameters = AudioParameters(processorLocation)
         val wavFile = WavFile(file)
 
-        parameters.endian = ByteOrder.LITTLE_ENDIAN
-        parameters.sampleRate = wavFile.sampleRate
-        parameters.encodingSize = when(wavFile.encodingSize.toInt()) {
-            8 -> AudioFormat.ENCODING_PCM_8BIT
-            16 -> AudioFormat.ENCODING_PCM_16BIT
-            else -> AudioFormat.ENCODING_DEFAULT
-        }
-        parameters.channel = when(wavFile.isMono) {
-            true -> AudioFormat.CHANNEL_IN_MONO
-            false -> AudioFormat.CHANNEL_IN_STEREO
-        }
+        processorServices.forEach { processorService ->
+            val parameters = AudioParameters(processorService.processorLocation)
+            parameters.endian = ByteOrder.LITTLE_ENDIAN
+            parameters.sampleRate = wavFile.sampleRate
+            parameters.encodingSize = when(wavFile.encodingSize.toInt()) {
+                8 -> AudioFormat.ENCODING_PCM_8BIT
+                16 -> AudioFormat.ENCODING_PCM_16BIT
+                else -> AudioFormat.ENCODING_DEFAULT
+            }
+            parameters.channel = when(wavFile.isMono) {
+                true -> AudioFormat.CHANNEL_IN_MONO
+                false -> AudioFormat.CHANNEL_IN_STEREO
+            }
 
-        if(processorLocation == AudioProcessorLocation.LOCAL || processorLocation == AudioProcessorLocation.ANY) {
-            audioQueues.add(pocketSphinx.audioQueue)
-            executor.submit {pocketSphinx.process(listener, parameters)}
-        }
-
-        if(processorLocation == AudioProcessorLocation.CLOUD || processorLocation == AudioProcessorLocation.ANY) {
-            audioQueues.add(wit.audioQueue)
-            executor.submit {wit.process(listener, parameters)}
+            when (processorService) {
+                AudioProcessorService.POCKET_SPHINX -> {
+                    Log.i(TAG, "Processing parameters $parameters")
+                    audioQueues.add(pocketSphinx.audioQueue)
+                    executor.submit{pocketSphinx.process(listener, parameters)}
+                }
+                AudioProcessorService.WIT -> {
+                    Log.i(TAG, "Processing parameters $parameters")
+                    audioQueues.add(wit.audioQueue)
+                    executor.submit{wit.process(listener, parameters)}
+                }
+                else -> {
+                    Log.e(TAG, "Ignored $processorService since it handles its own recording")
+                    return
+                }
+            }
         }
 
         Log.i(TAG, "Processing wav file $wavFile")
-        Log.i(TAG, "Processing parameters $parameters")
 
         //Get short array
         val buffer = ShortArray(wavFile.dataSize / 2)
@@ -99,20 +112,52 @@ class AudioToText(context: Context, val listener: AudioToTextListener): Closeabl
     }
 
     @Throws(AudioException::class)
-    private fun processAudioRecording(processorLocation: AudioProcessorLocation = AudioProcessorLocation.ANY): Long {
+    private fun getMicrophoneText(processorServices: Set<AudioProcessorService>): Long {
+        if(processorServices.size > 1 && null != processorServices.find{it.handleRecording}) {
+            throw AudioException("Only one audio processor that handles its own recording may be used")
+        } else if(processorServices.isEmpty()) {
+            throw AudioException("Must specify at least one audio processor")
+        }
+
+        val localProcessorService = processorServices.find{it.isLocal()}
+        val parameters = if(null != localProcessorService) {
+            AudioParameters(localProcessorService.processorLocation)
+        } else {
+            AudioParameters(processorServices.iterator().next().processorLocation)
+        }
+
         val audioQueues = mutableListOf<LinkedBlockingQueue<Pair<ShortArray, Int>>>()
-        val parameters = AudioParameters(processorLocation)
-
-        if(processorLocation == AudioProcessorLocation.LOCAL || processorLocation == AudioProcessorLocation.ANY) {
-            audioQueues.add(pocketSphinx.audioQueue)
-            executor.submit {pocketSphinx.process(listener, parameters)}
+        processorServices.forEach { processorService ->
+            if (!processorService.handleRecording) {
+                when(processorService) {
+                    AudioProcessorService.POCKET_SPHINX -> {
+                        audioQueues.add(pocketSphinx.audioQueue)
+                        executor.submit {pocketSphinx.process(listener, parameters)}
+                    }
+                    AudioProcessorService.WIT -> {
+                        audioQueues.add(wit.audioQueue)
+                        executor.submit {wit.process(listener, parameters)}
+                    }
+                    else -> throw AudioException("Misconfigured audio processor")
+                }
+            } else {
+                when (processorService) {
+                    AudioProcessorService.GOOGLE_LOCAL -> googleLocal.process(listener, AudioParameters(processorService.processorLocation))
+                    AudioProcessorService.GOOGLE_CLOUD -> googleCloud.process(listener, AudioParameters(processorService.processorLocation))
+                    AudioProcessorService.KEEN_ASR -> keenAsr.process(listener, AudioParameters(processorService.processorLocation))
+                    else -> throw AudioException("Misconfigured audio processor")
+                }
+                //Should technically only iterate once here, so we can exit...
+                return -1 //Can implement timing later if it really matters...
+            }
         }
 
-        if(processorLocation == AudioProcessorLocation.CLOUD || processorLocation == AudioProcessorLocation.ANY) {
-            audioQueues.add(wit.audioQueue)
-            executor.submit {wit.process(listener, parameters)}
-        }
+        return processAudioRecording(audioQueues, parameters)
+    }
 
+    @Throws(AudioException::class)
+    private fun processAudioRecording(audioQueues: List<LinkedBlockingQueue<Pair<ShortArray, Int>>>,
+                                      parameters: AudioParameters): Long {
         val bufferSize = AudioRecord.getMinBufferSize(parameters.sampleRate, parameters.channel, parameters.encodingSize)
         val buffer = ShortArray(bufferSize / 4)
 
