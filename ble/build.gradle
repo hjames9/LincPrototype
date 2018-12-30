@@ -56,7 +56,7 @@ dependencies {
 
 def libraryGroupId = 'io.padium.linc.prototype'
 def libraryArtifactId = 'ble'
-def libraryVersion = '0.0.5'
+def libraryVersion = '0.0.6'
 
 publishing {
     publications {

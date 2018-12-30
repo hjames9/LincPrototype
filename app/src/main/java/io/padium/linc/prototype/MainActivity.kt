@@ -7,10 +7,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
-import io.padium.audionlp.AudioProcessorLocation
-import io.padium.audionlp.AudioTextResult
-import io.padium.audionlp.AudioToText
-import io.padium.audionlp.AudioToTextListener
+import io.padium.audionlp.*
 import io.padium.linc.prototype.ble.LincBleDevice
 import io.padium.linc.prototype.ble.LincBleDeviceEvent
 import io.padium.linc.prototype.ble.ScaleLincBleDevice
@@ -35,7 +32,22 @@ class MainActivity : Activity() {
     }
 
     private val bleDeviceEvent  = object : LincBleDeviceEvent {
-        override fun onEvent(device: String, value: Int) {
+        override fun onStartedDiscovery(device: String) {
+            Log.i(TAG, "Started discovery on $device")
+        }
+        override fun onFoundDevice(device: String) {
+            Log.i(TAG, "Found $device")
+        }
+        override fun onMissedDevice(device: String) {
+            Log.i(TAG, "Didn't find $device")
+        }
+        override fun onConnectedDevice(device: String) {
+            Log.i(TAG, "Connected to $device")
+        }
+        override fun onDisconnectedDevice(device: String) {
+            Log.i(TAG, "Disconnected from $device")
+        }
+        override fun onDeviceEvent(device: String, value: Int) {
             when(device) {
                 ScaleLincBleDevice::class.java.simpleName ->
                     Log.i(TAG, "Scale weight is ${value}g")
@@ -57,27 +69,6 @@ class MainActivity : Activity() {
 
         lincBleScale = ScaleLincBleDevice(this, bleDeviceEvent)
         lincBleThermometer = ThermometerLincBleDevice(this, bleDeviceEvent)
-        audioToText = AudioToText(this, object : AudioToTextListener {
-            override fun onStart(processorLocation: AudioProcessorLocation) {
-                Log.i(TAG, "Started NLP processing on $processorLocation")
-            }
-
-            override fun onResult(processorLocation: AudioProcessorLocation, result: AudioTextResult) {
-                Log.i(TAG, "Finished text from NLP processing on $processorLocation has score[${result.score}], prob[${result.probability}] and is \"${result.phrase}\"")
-            }
-
-            override fun onPartialResult(processorLocation: AudioProcessorLocation, result: AudioTextResult) {
-                Log.i(TAG, "Partial text from NLP processing on $processorLocation has score[${result.score}], prob[${result.probability}] and is \"${result.phrase}\"")
-            }
-
-            override fun onEnd(processorLocation: AudioProcessorLocation) {
-                Log.i(TAG, "Finished NLP processing on $processorLocation")
-            }
-
-            override fun onError(processorLocation: AudioProcessorLocation, exp: Exception) {
-                Log.e(TAG, "Error in NLP processing on $processorLocation with ${exp.message}", exp)
-            }
-        })
 
         val lincScaleBluetoothButton : Button = findViewById(R.id.lincScaleBluetoothButton)
         lincScaleBluetoothButton.setOnClickListener {
@@ -101,21 +92,47 @@ class MainActivity : Activity() {
             }
         }
 
-        val audioNlpButton : Button = findViewById(R.id.audioNlpButton)
-        audioNlpButton.setOnClickListener {
-            Log.i(TAG, "Audio NLP starting...")
-            if(isThingsDevice()) {
-                doAudioNlp()
-            } else {
-                Toast.makeText(this, "This app needs to record audio through the microphone", Toast.LENGTH_SHORT).show()
-                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION)
-            }
-        }
-
         val tcpButton : Button = findViewById(R.id.tcpButton)
         tcpButton.setOnClickListener {
             doTcpTest(false)
             doTcpTest(true)
+        }
+
+        try {
+            audioToText = AudioToText(this, object : AudioToTextListener {
+                override fun onStart(processorLocation: AudioProcessorLocation) {
+                    Log.i(TAG, "Started NLP processing on $processorLocation")
+                }
+
+                override fun onResult(processorLocation: AudioProcessorLocation, result: AudioTextResult) {
+                    Log.i(TAG, "Finished text from NLP processing on $processorLocation has score[${result.score}], prob[${result.probability}] and is \"${result.phrase}\"")
+                }
+
+                override fun onPartialResult(processorLocation: AudioProcessorLocation, result: AudioTextResult) {
+                    Log.i(TAG, "Partial text from NLP processing on $processorLocation has score[${result.score}], prob[${result.probability}] and is \"${result.phrase}\"")
+                }
+
+                override fun onEnd(processorLocation: AudioProcessorLocation) {
+                    Log.i(TAG, "Finished NLP processing on $processorLocation")
+                }
+
+                override fun onError(processorLocation: AudioProcessorLocation, exp: Exception) {
+                    Log.e(TAG, "Error in NLP processing on $processorLocation with ${exp.message}", exp)
+                }
+            })
+
+            val audioNlpButton: Button = findViewById(R.id.audioNlpButton)
+            audioNlpButton.setOnClickListener {
+                Log.i(TAG, "Audio NLP starting...")
+                if (isThingsDevice()) {
+                    doAudioNlp()
+                } else {
+                    Toast.makeText(this, "This app needs to record audio through the microphone", Toast.LENGTH_SHORT).show()
+                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION)
+                }
+            }
+        } catch(e: AudioException) {
+            Log.e(TAG, e.message, e)
         }
     }
 

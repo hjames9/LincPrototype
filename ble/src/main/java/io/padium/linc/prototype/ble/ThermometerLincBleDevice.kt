@@ -76,6 +76,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "Disconnected from GATT server.")
                     ready = false
+                    event.onDisconnectedDevice(TAG)
                 }
                 else -> {
                     Log.e(TAG, "Unknown BLE connection new state: $newState")
@@ -91,6 +92,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
                     if (null != gatt) {
                         setupThermometer(gatt)
+                        event.onConnectedDevice(TAG)
                     } else {
                         Log.e(TAG, "Unable to setup thermometer as not bluetooth gatt handle unavailable")
                     }
@@ -219,7 +221,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
             } else if(characteristic.uuid == ff4.uuid) {
                 val temperatures = processTemperatures(characteristic.value)
                 for(temperature in temperatures) {
-                    event.onEvent(TAG, temperature)
+                    event.onDeviceEvent(TAG, temperature)
                 }
             }
         }

@@ -45,14 +45,17 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
                         Log.i(TAG, "Found device ${device.name} with address ${device.address}")
                         bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
                         starting = false
+                        event.onFoundDevice(TAG)
                     }
                 } else {
                     Log.e(TAG, "No device found...")
+                    event.onMissedDevice(TAG)
                 }
             }
 
             override fun onScanFailed(errorCode: Int) {
                 Log.e(TAG, "Scan failed, no device found...")
+                event.onMissedDevice(TAG)
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>?) {
@@ -76,6 +79,7 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
         if(!ready && !starting) {
             starting = true
             bluetoothScanner.startScan(listOf(getScanFilter()), getScanSettings(), leScan)
+            event.onStartedDiscovery(TAG)
         }
     }
 

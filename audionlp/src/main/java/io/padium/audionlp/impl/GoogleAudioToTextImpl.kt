@@ -18,12 +18,14 @@ internal class GoogleAudioToTextImpl(context: Context, private val processorLoca
         private val TAG = GoogleAudioToTextImpl::class.java.simpleName
     }
 
-    private val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+    private val recognizer : SpeechRecognizer
     override val audioQueue = LinkedBlockingQueue<Pair<ShortArray, Int>>()
 
     init {
         if(!SpeechRecognizer.isRecognitionAvailable(context)) {
             throw AudioException("Google speech recognition is NOT available")
+        } else {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(context)
         }
         Log.i(TAG, "Initialized Google speech recognition")
     }
