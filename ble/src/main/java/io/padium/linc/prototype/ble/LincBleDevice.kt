@@ -45,17 +45,17 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
                         Log.i(TAG, "Found device ${device.name} with address ${device.address}")
                         bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
                         starting = false
-                        event.onFoundDevice(TAG)
+                        event.onFoundDevice(getName())
                     }
                 } else {
                     Log.e(TAG, "No device found...")
-                    event.onMissedDevice(TAG)
+                    event.onMissedDevice(getName())
                 }
             }
 
             override fun onScanFailed(errorCode: Int) {
                 Log.e(TAG, "Scan failed, no device found...")
-                event.onMissedDevice(TAG)
+                event.onMissedDevice(getName())
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>?) {
@@ -79,7 +79,7 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
         if(!ready && !starting) {
             starting = true
             bluetoothScanner.startScan(listOf(getScanFilter()), getScanSettings(), leScan)
-            event.onStartedDiscovery(TAG)
+            event.onStartedDiscovery(getName())
         }
     }
 
@@ -118,5 +118,9 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
             DescriptorType.NONE -> {
             }
         }
+    }
+
+    private fun getName(): String {
+        return javaClass.simpleName
     }
 }
