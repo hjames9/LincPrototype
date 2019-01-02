@@ -75,7 +75,7 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
         return scanSettings.build()
     }
 
-    fun open() {
+    open fun open() {
         if(!ready && !starting) {
             starting = true
             bluetoothScanner.startScan(listOf(getScanFilter()), getScanSettings(), leScan)

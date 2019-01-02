@@ -48,7 +48,6 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
             when (status) {
                 BluetoothGatt.GATT_SUCCESS -> {
                     Log.i(TAG, "Bluetooth LE services discovered")
-
                     if (null != gatt) {
                         setupScale(gatt)
                         event.onConnectedDevice(TAG)

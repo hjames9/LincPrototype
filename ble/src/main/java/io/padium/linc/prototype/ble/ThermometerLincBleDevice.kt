@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
 class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleDevice(context, event,"iBBQ") {
@@ -39,7 +40,8 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
     private var descriptorWriteCount = 0
     private val queue = ArrayBlockingQueue<Runnable>(10)
     private val threadPool = Executors.newSingleThreadScheduledExecutor()
-    private var handlerThread : HandlerThread? = null
+    private lateinit var latch : CountDownLatch
+    private lateinit var handlerThread : HandlerThread
     private lateinit var handler : Handler
 
     private inner class HandlerThread : Thread(), Closeable {
@@ -49,6 +51,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
         override fun run() {
             Looper.prepare()
             handler = InnerHandler()
+            latch.countDown()
             Looper.loop()
         }
         override fun close() {
@@ -89,7 +92,6 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
             when (status) {
                 BluetoothGatt.GATT_SUCCESS -> {
                     Log.i(TAG, "Bluetooth LE services discovered")
-
                     if (null != gatt) {
                         setupThermometer(gatt)
                         event.onConnectedDevice(TAG)
@@ -241,19 +243,19 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
     init {
         Log.i(TAG, "Creating Linc thermometer BLE device")
-
-        if(currentThreadHasLooper()) {
-            handler = InnerHandler()
-        } else {
-            handlerThread = HandlerThread()
-        }
-
         bluetoothGattCb = thermometerBluetoothGattCb
+    }
+
+    override fun open() {
+        latch = CountDownLatch(1)
+        handlerThread = HandlerThread()
+        latch.await()
+        super.open()
     }
 
     override fun close() {
         super.close()
-        handlerThread?.close()
+        handlerThread.close()
     }
 
     private fun setupThermometer(gatt : BluetoothGatt) {
@@ -353,9 +355,5 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
     private fun readRemoteRssi(gatt : BluetoothGatt) {
         gatt.readRemoteRssi()
-    }
-
-    private fun currentThreadHasLooper(): Boolean {
-        return Looper.myLooper() != null
     }
 }
