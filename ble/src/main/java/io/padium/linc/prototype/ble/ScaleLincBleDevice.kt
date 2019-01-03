@@ -30,6 +30,7 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
                     Log.i(TAG, "Connected to GATT server.")
                     Log.i(TAG, "Attempting to start service discovery: ${bluetoothGatt.discoverServices()}")
                     bluetoothScanner.stopScan(leScan)
+                    bluetoothScanner.flushPendingScanResults(leScan)
                     ready = true
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {

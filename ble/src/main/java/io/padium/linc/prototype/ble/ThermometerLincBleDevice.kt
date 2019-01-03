@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.util.Log
+import android.util.LogPrinter
 import android.view.MotionEvent
 import java.io.Closeable
 import java.util.UUID
@@ -49,15 +50,19 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
             start()
         }
         override fun run() {
+            Log.i(TAG, "Preparing Looper in thermometer handler thread")
             Looper.prepare()
             handler = InnerHandler()
             threadLooper = Looper.myLooper()
             latch.countDown()
+            Log.i(TAG, "Started Looper in thermometer handler thread")
+            threadLooper?.dump(LogPrinter(Log.INFO, TAG), "ThermometerLooper")
             Looper.loop()
         }
         override fun close() {
             threadLooper?.quitSafely()
             join()
+            Log.i(TAG, "Stopped Looper in thermometer handler thread")
         }
     }
 

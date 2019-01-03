@@ -99,7 +99,26 @@ class MainActivity : Activity() {
             doTcpTest(false)
             doTcpTest(true)
         }
+    }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>?, grantResults: IntArray?) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if(null != grantResults && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            when (requestCode) {
+                BLE_SCALE_PERMISSION -> {
+                    lincBleScale.close()
+                    lincBleScale.open()
+                }
+                BLE_THERMOMETER_PERMISSION -> {
+                    lincBleThermometer.close()
+                    lincBleThermometer.open()
+                }
+                MICROPHONE_PERMISSION -> doAudioNlp()
+            }
+        }
+    }
+
+    private fun createAudioNlp() {
         try {
             audioToText = AudioToText(this, object : AudioToTextListener {
                 override fun onStart(processorLocation: AudioProcessorLocation) {
@@ -138,29 +157,13 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>?, grantResults: IntArray?) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if(null != grantResults && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            when (requestCode) {
-                BLE_SCALE_PERMISSION -> {
-                    lincBleScale.close()
-                    lincBleScale.open()
-                }
-                BLE_THERMOMETER_PERMISSION -> {
-                    lincBleThermometer.close()
-                    lincBleThermometer.open()
-                }
-                MICROPHONE_PERMISSION -> doAudioNlp()
-            }
-        }
-    }
-
     private fun isThingsDevice(): Boolean {
         val pm = applicationContext.packageManager
         return pm.hasSystemFeature(PackageManager.FEATURE_EMBEDDED)
     }
 
     private fun doAudioNlp() {
+        createAudioNlp()
         doAsync {
             try {
                 audioToText.getWavFileText(File("${this@MainActivity.filesDir.absoluteFile}/sample_8mhz.wav"))
