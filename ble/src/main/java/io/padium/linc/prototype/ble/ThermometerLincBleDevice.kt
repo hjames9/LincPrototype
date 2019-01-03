@@ -36,26 +36,27 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
     private lateinit var ff4 : BluetoothGattCharacteristic
     private lateinit var ff5 : BluetoothGattCharacteristic
 
-    var celsius = false
     private var descriptorWriteCount = 0
     private val queue = ArrayBlockingQueue<Runnable>(10)
     private val threadPool = Executors.newSingleThreadScheduledExecutor()
     private lateinit var latch : CountDownLatch
-    private lateinit var handlerThread : HandlerThread
+    private var handlerThread : HandlerThread? = null
     private lateinit var handler : Handler
 
     private inner class HandlerThread : Thread(), Closeable {
+        private var threadLooper : Looper? = null
         init {
             start()
         }
         override fun run() {
             Looper.prepare()
             handler = InnerHandler()
+            threadLooper = Looper.myLooper()
             latch.countDown()
             Looper.loop()
         }
         override fun close() {
-            Looper.myLooper().quitSafely()
+            threadLooper?.quitSafely()
             join()
         }
     }
@@ -74,6 +75,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                     Log.i(TAG, "Connected to GATT server.")
                     Log.i(TAG, "Attempting to start service discovery: ${bluetoothGatt.discoverServices()}")
                     bluetoothScanner.stopScan(leScan)
+                    bluetoothScanner.flushPendingScanResults(leScan)
                     ready = true
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
@@ -116,7 +118,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                                 readThermometerVersions(gatt)
                             }
                             else -> {
-                                Log.e(TAG, "Descriptor write called again, wasn't expecting this.")
+                                Log.e(TAG, "Descriptor write called again ($descriptorWriteCount), wasn't expecting this.")
                             }
                         }
                     }
@@ -202,7 +204,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                         handler.postDelayed(object : Runnable {
                             override fun run() {
                                 if(queue.size == 1)
-                                    asyncExecution(Runnable{readRemoteRssi(gatt)})
+                                    asyncExecution(Runnable{readRemoteSignalStrengthIndicator(gatt)})
 
                                 handler.postDelayed(this, 2000)
                             }
@@ -229,13 +231,13 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
         }
 
         override fun onReadRemoteRssi(gatt: BluetoothGatt?, rssi: Int, status: Int) {
-            Log.i(TAG, "Bluetooth LE remote rssi read: $rssi")
+            Log.i(TAG, "Bluetooth LE remote signal strength read: $rssi")
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(TAG, "Bluetooth LE remote rssi read success")
+                    Log.i(TAG, "Bluetooth LE remote signal strength read success")
                 }
                 else -> {
-                    Log.e(TAG, "Error with BLE remote rssi read")
+                    Log.e(TAG, "Error with BLE remote signal strength read")
                 }
             }
         }
@@ -255,7 +257,8 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
     override fun close() {
         super.close()
-        handlerThread.close()
+        handlerThread?.close()
+        descriptorWriteCount = 0
     }
 
     private fun setupThermometer(gatt : BluetoothGatt) {
@@ -296,12 +299,14 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
         gatt.writeCharacteristic(ff2)
     }
 
+    /*
     private fun handThermometerPair(gatt : BluetoothGatt) {
         Log.i(TAG, "Hand pairing this thermometer")
         val yz = byteArrayOf(32.toByte(), 7.toByte(), 6.toByte(), 5.toByte(), 4.toByte(), 3.toByte(), 2.toByte(), 1.toByte(), 1.toByte(), 1.toByte(), 1.toByte(), 1.toByte(), 0.toByte(), 0.toByte(), 0.toByte())
         ff2.value = yz
         gatt.writeCharacteristic(ff2)
     }
+    */
 
     private fun readThermometerVersions(gatt : BluetoothGatt) {
         Log.i(TAG, "Reading thermometer versions")
@@ -329,13 +334,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
         val bu = ByteArray(6)
         bu[0] = 2.toByte()
-
-        if (celsius) {
-            bu[1] = 1.toByte()
-        } else {
-            bu[1] = 0.toByte()
-        }
-
+        bu[1] = 0.toByte() //if not celsius, set this bu[1] = 1.toByte()
         bu[2] = 0.toByte()
         bu[3] = 0.toByte()
         bu[4] = 0.toByte()
@@ -353,7 +352,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
         gatt.writeCharacteristic(ff5)
     }
 
-    private fun readRemoteRssi(gatt : BluetoothGatt) {
+    private fun readRemoteSignalStrengthIndicator(gatt : BluetoothGatt) {
         gatt.readRemoteRssi()
     }
 }

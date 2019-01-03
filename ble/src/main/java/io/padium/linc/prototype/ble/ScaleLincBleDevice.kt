@@ -131,13 +131,13 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
         }
 
         override fun onReadRemoteRssi(gatt: BluetoothGatt?, rssi: Int, status: Int) {
-            Log.i(TAG, "Bluetooth LE remote rssi read: $rssi")
+            Log.i(TAG, "Bluetooth LE remote signal strength read: $rssi")
             when(status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(TAG, "Bluetooth LE remote rssi read success")
+                    Log.i(TAG, "Bluetooth LE remote signal strength read success")
                 }
                 else -> {
-                    Log.e(TAG, "Error with BLE remote rssi read")
+                    Log.e(TAG, "Error with BLE remote signal strength read")
                 }
             }
         }

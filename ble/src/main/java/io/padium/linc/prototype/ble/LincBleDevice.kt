@@ -21,7 +21,7 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
         private val TAG = LincBleDevice::class.java.simpleName
     }
 
-    protected val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+    private val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
     protected val leScan : ScanCallback
     protected val bluetoothScanner : BluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
     protected lateinit var bluetoothGatt : BluetoothGatt
@@ -65,12 +65,13 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
         }
     }
 
-    protected fun getScanFilter(): ScanFilter {
+    protected open fun getScanFilter(): ScanFilter {
         val scanFilter = ScanFilter.Builder()
+        scanFilter.setDeviceName(deviceName)
         return scanFilter.build()
     }
 
-    protected fun getScanSettings(): ScanSettings {
+    protected open fun getScanSettings(): ScanSettings {
         val scanSettings = ScanSettings.Builder()
         return scanSettings.build()
     }
@@ -85,6 +86,7 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
 
     override fun close() {
         bluetoothScanner.stopScan(leScan)
+        bluetoothScanner.flushPendingScanResults(leScan)
     }
 
     protected fun setCharacteristicNotification(gatt : BluetoothGatt, characteristic: BluetoothGattCharacteristic, enable : Boolean, descriptorType : DescriptorType) {

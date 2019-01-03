@@ -74,6 +74,7 @@ class MainActivity : Activity() {
         lincScaleBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE scale...")
             if(isThingsDevice()) {
+                lincBleScale.close()
                 lincBleScale.open()
             } else {
                 Toast.makeText(this, "This app needs to access Bluetooth", Toast.LENGTH_SHORT).show()
@@ -85,6 +86,7 @@ class MainActivity : Activity() {
         lincThermometerBluetoothButton.setOnClickListener {
             Log.i(TAG, "Looking for Linc BLE thermometer...")
             if(isThingsDevice()) {
+                lincBleThermometer.close()
                 lincBleThermometer.open()
             } else {
                 Toast.makeText(this, "This app needs to access Bluetooth", Toast.LENGTH_SHORT).show()
@@ -140,8 +142,14 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if(null != grantResults && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             when (requestCode) {
-                BLE_SCALE_PERMISSION -> lincBleScale.open()
-                BLE_THERMOMETER_PERMISSION -> lincBleThermometer.open()
+                BLE_SCALE_PERMISSION -> {
+                    lincBleScale.close()
+                    lincBleScale.open()
+                }
+                BLE_THERMOMETER_PERMISSION -> {
+                    lincBleThermometer.close()
+                    lincBleThermometer.open()
+                }
                 MICROPHONE_PERMISSION -> doAudioNlp()
             }
         }
