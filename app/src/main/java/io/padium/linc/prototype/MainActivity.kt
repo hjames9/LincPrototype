@@ -32,29 +32,29 @@ class MainActivity : Activity() {
     }
 
     private val bleDeviceEvent  = object : LincBleDeviceEvent {
-        override fun onStartedDiscovery(device: String) {
-            Log.i(TAG, "Started discovery on $device")
+        override fun onStartedDiscovery(device: LincBleDevice, deviceName: String) {
+            Log.i(TAG, "Started discovery on $deviceName")
         }
-        override fun onFoundDevice(device: String) {
-            Log.i(TAG, "Found $device")
+        override fun onFoundDevice(device: LincBleDevice, deviceName: String) {
+            Log.i(TAG, "Found $deviceName")
         }
-        override fun onMissedDevice(device: String) {
-            Log.i(TAG, "Didn't find $device")
+        override fun onMissedDevice(device: LincBleDevice, deviceName: String) {
+            Log.i(TAG, "Didn't find $deviceName")
         }
-        override fun onConnectedDevice(device: String) {
-            Log.i(TAG, "Connected to $device")
+        override fun onConnectedDevice(device: LincBleDevice, deviceName: String) {
+            Log.i(TAG, "Connected to $deviceName")
         }
-        override fun onDisconnectedDevice(device: String) {
-            Log.i(TAG, "Disconnected from $device")
+        override fun onDisconnectedDevice(device: LincBleDevice, deviceName: String) {
+            Log.i(TAG, "Disconnected from $deviceName")
         }
-        override fun onDeviceEvent(device: String, value: Int) {
-            when(device) {
+        override fun onDeviceEvent(device: LincBleDevice, deviceName: String, value: Int) {
+            when(deviceName) {
                 ScaleLincBleDevice::class.java.simpleName ->
                     Log.i(TAG, "Scale weight is ${value}g")
                 ThermometerLincBleDevice::class.java.simpleName ->
                     Log.i(TAG, "Thermometer temperature is ${value}C")
                 else ->
-                    Log.e(TAG, "Unknown device $device with value $value")
+                    Log.e(TAG, "Unknown device $deviceName with value $value")
             }
         }
     }
@@ -81,6 +81,7 @@ class MainActivity : Activity() {
                 requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), BLE_SCALE_PERMISSION)
             }
         }
+        lincScaleBluetoothButton.isEnabled = false
 
         val lincThermometerBluetoothButton : Button = findViewById(R.id.lincThermometerBluetoothButton)
         lincThermometerBluetoothButton.setOnClickListener {
@@ -93,12 +94,17 @@ class MainActivity : Activity() {
                 requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), BLE_THERMOMETER_PERMISSION)
             }
         }
+        lincThermometerBluetoothButton.isEnabled = false
 
         val tcpButton : Button = findViewById(R.id.tcpButton)
         tcpButton.setOnClickListener {
             doTcpTest(false)
             doTcpTest(true)
         }
+
+        //Attempt to start scans at startup
+        lincBleThermometer.open()
+        lincBleScale.open()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>?, grantResults: IntArray?) {

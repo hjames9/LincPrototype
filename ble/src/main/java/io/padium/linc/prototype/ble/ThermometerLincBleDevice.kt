@@ -17,7 +17,6 @@ import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 
 class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleDevice(context, event,"iBBQ") {
     companion object {
@@ -39,7 +38,6 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
 
     private var descriptorWriteCount = 0
     private val queue = ArrayBlockingQueue<Runnable>(10)
-    private val threadPool = Executors.newSingleThreadScheduledExecutor()
     private lateinit var latch : CountDownLatch
     private var handlerThread : HandlerThread? = null
     private lateinit var handler : Handler
@@ -86,7 +84,9 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "Disconnected from GATT server.")
                     ready = false
-                    event.onDisconnectedDevice(TAG)
+                    descriptorWriteCount = 0
+                    event.onDisconnectedDevice(this@ThermometerLincBleDevice, TAG)
+                    reconnect()
                 }
                 else -> {
                     Log.e(TAG, "Unknown BLE connection new state: $newState")
@@ -101,7 +101,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
                     Log.i(TAG, "Bluetooth LE services discovered")
                     if (null != gatt) {
                         setupThermometer(gatt)
-                        event.onConnectedDevice(TAG)
+                        event.onConnectedDevice(this@ThermometerLincBleDevice, TAG)
                     } else {
                         Log.e(TAG, "Unable to setup thermometer as not bluetooth gatt handle unavailable")
                     }
@@ -230,7 +230,7 @@ class ThermometerLincBleDevice(context: Context, event: LincBleDeviceEvent) : Li
             } else if(characteristic.uuid == ff4.uuid) {
                 val temperatures = processTemperatures(characteristic.value)
                 for(temperature in temperatures) {
-                    event.onDeviceEvent(TAG, temperature)
+                    event.onDeviceEvent(this@ThermometerLincBleDevice, TAG, temperature)
                 }
             }
         }

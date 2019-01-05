@@ -14,6 +14,9 @@ import android.content.Context
 import android.util.Log
 import java.io.Closeable
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, val deviceName : String) : Closeable {
     companion object {
@@ -30,6 +33,8 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
     protected var ready = false
     private var starting = false
 
+    protected val threadPool : ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+
     enum class DescriptorType {
         READ, WRITE, BOTH, NONE
     }
@@ -39,23 +44,23 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
             override fun onScanResult(callbackType: Int, result: ScanResult?) {
                 val device = result?.device
                 if(null != device) {
-                    Log.d(TAG,"Found device ${device.name} with address ${device.address}")
+                    Log.d(TAG,"Discovered device ${device.name} with address ${device.address}")
 
                     if(device.name == deviceName)  {
                         Log.i(TAG, "Found device ${device.name} with address ${device.address}")
                         bluetoothGatt = device.connectGatt(context,false, bluetoothGattCb)
                         starting = false
-                        event.onFoundDevice(getName())
+                        event.onFoundDevice(this@LincBleDevice, getName())
                     }
                 } else {
                     Log.e(TAG, "No device found...")
-                    event.onMissedDevice(getName())
+                    event.onMissedDevice(this@LincBleDevice, getName())
                 }
             }
 
             override fun onScanFailed(errorCode: Int) {
                 Log.e(TAG, "Scan failed, no device found...")
-                event.onMissedDevice(getName())
+                event.onMissedDevice(this@LincBleDevice, getName())
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>?) {
@@ -67,7 +72,6 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
 
     protected open fun getScanFilter(): ScanFilter {
         val scanFilter = ScanFilter.Builder()
-        scanFilter.setDeviceName(deviceName)
         return scanFilter.build()
     }
 
@@ -80,13 +84,26 @@ abstract class LincBleDevice(context: Context, val event: LincBleDeviceEvent, va
         if(!ready && !starting) {
             starting = true
             bluetoothScanner.startScan(listOf(getScanFilter()), getScanSettings(), leScan)
-            event.onStartedDiscovery(getName())
+            event.onStartedDiscovery(this, getName())
         }
     }
 
     override fun close() {
         bluetoothScanner.stopScan(leScan)
         bluetoothScanner.flushPendingScanResults(leScan)
+        if(::bluetoothGatt.isInitialized) {
+            bluetoothGatt.disconnect()
+            bluetoothGatt.close()
+        }
+        starting = false
+        ready = false
+    }
+
+    protected open fun reconnect() {
+        close()
+        threadPool.schedule({
+            open()
+        }, 10, TimeUnit.SECONDS)
     }
 
     protected fun setCharacteristicNotification(gatt : BluetoothGatt, characteristic: BluetoothGattCharacteristic, enable : Boolean, descriptorType : DescriptorType) {

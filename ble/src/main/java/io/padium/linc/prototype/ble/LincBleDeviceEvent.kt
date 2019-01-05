@@ -1,10 +1,10 @@
 package io.padium.linc.prototype.ble
 
 interface LincBleDeviceEvent {
-    fun onStartedDiscovery(device : String)
-    fun onFoundDevice(device : String)
-    fun onMissedDevice(device : String)
-    fun onConnectedDevice(device : String)
-    fun onDeviceEvent(device : String, value : Int)
-    fun onDisconnectedDevice(device : String)
+    fun onStartedDiscovery(device: LincBleDevice, deviceName: String)
+    fun onFoundDevice(device: LincBleDevice, deviceName: String)
+    fun onMissedDevice(device: LincBleDevice, deviceName: String)
+    fun onConnectedDevice(device: LincBleDevice, deviceName: String)
+    fun onDeviceEvent(device: LincBleDevice, deviceName: String, value : Int)
+    fun onDisconnectedDevice(device: LincBleDevice, deviceName: String)
 }

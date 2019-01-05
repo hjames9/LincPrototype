@@ -36,7 +36,8 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "Disconnected from GATT server.")
                     ready = false
-                    event.onDisconnectedDevice(TAG)
+                    event.onDisconnectedDevice(this@ScaleLincBleDevice, TAG)
+                    reconnect()
                 }
                 else -> {
                     Log.e(TAG, "Unknown BLE connection new state: $newState")
@@ -51,7 +52,7 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
                     Log.i(TAG, "Bluetooth LE services discovered")
                     if (null != gatt) {
                         setupScale(gatt)
-                        event.onConnectedDevice(TAG)
+                        event.onConnectedDevice(this@ScaleLincBleDevice, TAG)
                     } else {
                         Log.e(TAG, "Unable to setup scale as not bluetooth gatt handle unavailable")
                     }
@@ -125,7 +126,7 @@ class ScaleLincBleDevice(context: Context, event: LincBleDeviceEvent) : LincBleD
                         ff2.value = bArr
                         gatt.writeCharacteristic(ff2)
                     } else {
-                        event.onDeviceEvent(TAG, intValue2)
+                        event.onDeviceEvent(this@ScaleLincBleDevice, TAG, intValue2)
                     }
                 }
             }
