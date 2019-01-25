@@ -2,6 +2,7 @@ package io.padium.linc.prototype
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -96,6 +97,17 @@ class MainActivity : Activity() {
         }
         lincThermometerBluetoothButton.isEnabled = false
 
+        val audioNlpButton: Button = findViewById(R.id.audioNlpButton)
+        audioNlpButton.setOnClickListener {
+            Log.i(TAG, "Audio NLP starting...")
+            if (isThingsDevice()) {
+                doAudioNlpService()
+            } else {
+                Toast.makeText(this, "This app needs to record audio through the microphone", Toast.LENGTH_SHORT).show()
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION)
+            }
+        }
+
         val tcpButton : Button = findViewById(R.id.tcpButton)
         tcpButton.setOnClickListener {
             doTcpTest(false)
@@ -119,7 +131,10 @@ class MainActivity : Activity() {
                     lincBleThermometer.close()
                     lincBleThermometer.open()
                 }
-                MICROPHONE_PERMISSION -> doAudioNlp()
+                MICROPHONE_PERMISSION -> {
+                    doAudioNlpService()
+                    //doAudioNlp()
+                }
             }
         }
     }
@@ -147,17 +162,6 @@ class MainActivity : Activity() {
                     Log.e(TAG, "Error in NLP processing on $processorLocation with ${exp.message}", exp)
                 }
             })
-
-            val audioNlpButton: Button = findViewById(R.id.audioNlpButton)
-            audioNlpButton.setOnClickListener {
-                Log.i(TAG, "Audio NLP starting...")
-                if (isThingsDevice()) {
-                    doAudioNlp()
-                } else {
-                    Toast.makeText(this, "This app needs to record audio through the microphone", Toast.LENGTH_SHORT).show()
-                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_PERMISSION)
-                }
-            }
         } catch(e: AudioException) {
             Log.e(TAG, e.message, e)
         }
@@ -180,6 +184,10 @@ class MainActivity : Activity() {
 
         //No asynchronous as the Google API complains..
         audioToText.startMicrophoneTextTimed(5, TimeUnit.SECONDS)
+    }
+
+    private fun doAudioNlpService() {
+        startService(Intent(this, SpeechToTextService::class.java))
     }
 
     private fun doTcpTest(tls : Boolean = false) {

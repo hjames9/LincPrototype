@@ -18,6 +18,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+        <service android:name=".SpeechToTextService"/>
     </application>
 
     <uses-permission android:name="android.permission.BLUETOOTH" />
