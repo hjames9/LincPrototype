@@ -5,12 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import com.tbruyelle.rxpermissions.RxPermissions
 import java.util.*
+import java.util.concurrent.LinkedBlockingQueue
 
 class SpeechToText(private var context: Context, private val delegate: SpeechDelegate) {
     companion object {
@@ -18,6 +21,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     }
 
     private var mSpeechRecognizer: SpeechRecognizer? = null
+    private var handler = Handler(Looper.getMainLooper())
     private var mPreferOffline = false
     private var mGetPartialResults = true
     private var mIsListening = false
@@ -123,29 +127,50 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     }
 
     private fun initSpeechRecognizer(context: Context) {
-        this.context = context
+        val queue = LinkedBlockingQueue<Any>()
+        val processed = handler.post {
+            try {
+                this.context = context
+                if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                    if (mSpeechRecognizer != null) {
+                        try {
+                            mSpeechRecognizer!!.destroy()
+                        } catch (exc: Throwable) {
+                            Log.d(TAG, "Non-Fatal e while destroying speech. " + exc.message)
+                        } finally {
+                            mSpeechRecognizer = null
+                        }
+                    }
 
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            if (mSpeechRecognizer != null) {
-                try {
-                    mSpeechRecognizer!!.destroy()
-                } catch (exc: Throwable) {
-                    Log.d(TAG, "Non-Fatal e while destroying speech. " + exc.message)
-                } finally {
+                    mSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                    mSpeechRecognizer!!.setRecognitionListener(mListener)
+                    initDelayedStopListening(context)
+
+                } else {
                     mSpeechRecognizer = null
                 }
+
+                mPartialData.clear()
+                mUnstableData = null
+                queue.add(Any())
+            } catch(exc: Exception) {
+                queue.add(exc)
             }
-
-            mSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-            mSpeechRecognizer!!.setRecognitionListener(mListener)
-            initDelayedStopListening(context)
-
-        } else {
-            mSpeechRecognizer = null
         }
 
-        mPartialData.clear()
-        mUnstableData = null
+        if(isOnMainThread())
+            return
+
+        if(processed) {
+            Log.d(TAG, "Handler message was added to the queue")
+            val value = queue.take()
+            when (value) {
+                value is Exception -> throw value as Exception
+                else -> Log.d(TAG, "${object {}.javaClass.enclosingMethod.name} executed normally")
+            }
+        } else {
+            Log.e(TAG, "Handler message was NOT added to the queue")
+        }
     }
 
     private fun initDelayedStopListening(context: Context) {
@@ -168,13 +193,34 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      */
     @Synchronized
     fun shutdown() {
-        if (mSpeechRecognizer != null) {
+        val queue = LinkedBlockingQueue<Any>()
+        val processed = handler.post {
             try {
-                mSpeechRecognizer!!.stopListening()
-            } catch (exc: Exception) {
-                Log.e(TAG, "Warning while de-initing speech recognizer", exc)
+                if (mSpeechRecognizer != null) {
+                    try {
+                        mSpeechRecognizer!!.stopListening()
+                    } catch (exc: Exception) {
+                        Log.e(TAG, "Warning while de-initing speech recognizer", exc)
+                    }
+                }
+                queue.add(Any())
+            } catch(exc: Exception) {
+                queue.add(exc)
             }
+        }
 
+        if(isOnMainThread())
+            return
+
+        if(processed) {
+            Log.d(TAG, "Handler message was added to the queue")
+            val value = queue.take()
+            when (value) {
+                value is Exception -> throw value as Exception
+                else -> Log.d(TAG, "${object {}.javaClass.enclosingMethod.name} executed normally")
+            }
+        } else {
+            Log.e(TAG, "Handler message was NOT added to the queue")
         }
     }
 
@@ -186,36 +232,59 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      */
     @Throws(SpeechRecognitionException::class)
     fun startListening() {
-        if (mIsListening) return
+        val queue = LinkedBlockingQueue<Any>()
+        val processed = handler.post {
+            try {
+                if (mIsListening) return@post
 
-        if (mSpeechRecognizer == null)
-            throw SpeechRecognitionException("Speech recognition not available")
+                if (mSpeechRecognizer == null)
+                    throw SpeechRecognitionException("Speech recognition not available")
 
-        if (throttleAction()) {
-            Log.d(TAG, "Hey man calm down! Throttling start to prevent disaster!")
+                if (throttleAction()) {
+                    Log.d(TAG, "Hey man calm down! Throttling start to prevent disaster!")
+                    return@post
+                }
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                        .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, mGetPartialResults)
+                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, mLocale.language)
+                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, mPreferOffline)
+
+                try {
+                    mSpeechRecognizer!!.startListening(intent)
+                } catch (exc: SecurityException) {
+                    throw SpeechRecognitionException("Google voice typing must be enabled")
+                }
+
+                mIsListening = true
+                updateLastActionTimestamp()
+
+                try {
+                    delegate.onStartOfSpeech()
+                } catch (exc: Throwable) {
+                    Log.e(TAG, "Unhandled exception in delegate onStartOfSpeech", exc)
+                }
+
+                queue.add(Any())
+            } catch(exc: Exception) {
+                queue.add(exc)
+            }
+        }
+
+        if(isOnMainThread())
             return
-        }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, mGetPartialResults)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, mLocale.language)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, mPreferOffline)
-
-        try {
-            mSpeechRecognizer!!.startListening(intent)
-        } catch (exc: SecurityException) {
-            throw SpeechRecognitionException("Google voice typing must be enabled")
-        }
-
-        mIsListening = true
-        updateLastActionTimestamp()
-
-        try {
-            delegate.onStartOfSpeech()
-        } catch (exc: Throwable) {
-            Log.e(TAG, "Unhandled exception in delegate onStartOfSpeech", exc)
+        if(processed) {
+            Log.d(TAG, "Handler message was added to the queue")
+            val value = queue.take()
+            when (value) {
+                value is Exception -> throw value as Exception
+                else -> Log.d(TAG, "${object {}.javaClass.enclosingMethod.name} executed normally")
+            }
+        } else {
+            Log.e(TAG, "Handler message was NOT added to the queue")
         }
     }
 
@@ -249,6 +318,10 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
         } finally {
             muteBeepSoundOfRecorder()
         }
+    }
+
+    private fun isOnMainThread(): Boolean {
+        return Looper.getMainLooper().isCurrentThread
     }
 
     /**
