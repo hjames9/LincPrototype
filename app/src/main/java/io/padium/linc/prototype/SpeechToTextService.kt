@@ -31,7 +31,7 @@ class SpeechToTextService : Service(), SpeechDelegate {
         Log.i(TAG, "Starting SpeechToText service")
 
         try {
-            speechToText.startListeningCheckPermissions()
+            speechToText.startListening()
         } catch(exc: SpeechRecognitionException) {
             Log.e(TAG, exc.message, exc)
             stopSelfResult(startId)

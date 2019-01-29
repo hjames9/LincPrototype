@@ -49,15 +49,12 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
     implementation "edu.cmu.pocketsphinx.android:pocketsphinx-android:5prealpha@aar"
     implementation "com.keenresearch.keenasr:keenasr-android:0.81@aar"
-    implementation "com.tbruyelle.rxpermissions:rxpermissions:0.7.0@aar"
-    implementation "io.reactivex:rxandroid:1.2.1"
-    implementation "io.reactivex:rxjava:1.1.6"
     implementation project(path: ':utils')
 }
 
 def libraryGroupId = 'io.padium.audionlp'
 def libraryArtifactId = 'audionlp'
-def libraryVersion = '0.1.1'
+def libraryVersion = '0.1.2'
 
 publishing {
     publications {

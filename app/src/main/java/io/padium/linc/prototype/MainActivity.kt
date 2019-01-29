@@ -4,7 +4,12 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
@@ -24,7 +29,7 @@ import java.util.concurrent.TimeUnit
  * Main activity for Linc bluetooth le test application.
  *
  */
-class MainActivity : Activity() {
+class MainActivity : Activity(), TextToSpeech.OnInitListener {
     companion object {
         private val TAG = MainActivity::class.java.simpleName
         private const val BLE_SCALE_PERMISSION = 1000
@@ -63,6 +68,24 @@ class MainActivity : Activity() {
     private lateinit var lincBleScale : LincBleDevice
     private lateinit var lincBleThermometer : LincBleDevice
     private lateinit var audioToText : AudioToText
+    private lateinit var textToSpeech : TextToSpeech
+
+    private val utteranceProgressListener = object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) {
+            stopService(Intent(this@MainActivity, SpeechToTextService::class.java))
+        }
+
+        override fun onDone(utteranceId: String?) {
+            startService(Intent(this@MainActivity, SpeechToTextService::class.java))
+        }
+
+        override fun onError(utteranceId: String?) {
+        }
+
+        override fun onError(utteranceId: String?, errorCode: Int) {
+            Log.e(TAG, "Text to speech error on $utteranceId with code $errorCode")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,6 +140,54 @@ class MainActivity : Activity() {
         //Attempt to start scans at startup
         lincBleThermometer.open()
         lincBleScale.open()
+
+        val playMusicButton : Button = findViewById(R.id.playMusicButton)
+        playMusicButton.setOnClickListener {
+            try {
+                Log.i(TAG, "Playing audio file")
+                stopService(Intent(this, SpeechToTextService::class.java))
+
+                val audioAttributesBuilder = AudioAttributes.Builder()
+                audioAttributesBuilder.setLegacyStreamType(AudioManager.STREAM_ALARM)
+
+                val mediaPlayer = MediaPlayer()
+                //mediaPlayer.setDataSource("https://sample-videos.com/audio/mp3/wave.mp3")  //No words
+                mediaPlayer.setDataSource("https://ia802508.us.archive.org/5/items/testmp3testfile/mpthreetest.mp3") //Has english words
+                mediaPlayer.setAudioAttributes(audioAttributesBuilder.build())
+                mediaPlayer.setOnCompletionListener {
+                    startService(Intent(this, SpeechToTextService::class.java))
+                }
+                mediaPlayer.prepare()
+                mediaPlayer.start()
+            } catch(exc: Exception) {
+                Log.e(TAG, exc.message, exc)
+            }
+        }
+
+        val ttsButton : Button = findViewById(R.id.ttsButton)
+        ttsButton.setOnClickListener {
+            if(!::textToSpeech.isInitialized) {
+                textToSpeech = TextToSpeech(this, this)
+            } else {
+                textToSpeech.speak("Say it loud.  I am black and I'm proud", TextToSpeech.QUEUE_ADD, null, "31337")
+            }
+        }
+    }
+
+    override fun onInit(status: Int) {
+        when(status) {
+            TextToSpeech.SUCCESS -> {
+                Log.i(TAG, "Successfully configured text to speech")
+                val audioAttributesBuilder = AudioAttributes.Builder()
+                audioAttributesBuilder.setLegacyStreamType(AudioManager.STREAM_ALARM)
+                textToSpeech.setOnUtteranceProgressListener(utteranceProgressListener)
+                textToSpeech.setAudioAttributes(audioAttributesBuilder.build())
+                textToSpeech.speak("Say it loud.  I am black and I'm proud", TextToSpeech.QUEUE_ADD, null, "31337")
+            }
+            else -> {
+                Log.e(TAG, "Unsuccessfully configured text to speech: $status")
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>?, grantResults: IntArray?) {

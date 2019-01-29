@@ -1,6 +1,5 @@
 package io.padium.audionlp.android
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -11,7 +10,6 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
-import com.tbruyelle.rxpermissions.RxPermissions
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 
@@ -180,7 +178,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
         }
 
         try {
-            startListeningCheckPermissions()
+            startListening()
         } catch(exc: SpeechRecognitionException) {
             Log.e(TAG, exc.message, exc)
         }
@@ -232,6 +230,12 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      */
     @Throws(SpeechRecognitionException::class)
     fun startListening() {
+        if (isListening()) {
+            muteBeepSoundOfRecorder(true)
+            stopListening()
+            return
+        }
+
         val queue = LinkedBlockingQueue<Any>()
         val processed = handler.post {
             try {
@@ -270,6 +274,8 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
                 queue.add(Any())
             } catch(exc: Exception) {
                 queue.add(exc)
+            } finally {
+                muteBeepSoundOfRecorder(true)
             }
         }
 
@@ -288,38 +294,6 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
         }
     }
 
-    @Throws(SpeechRecognitionException::class)
-    fun startListeningCheckPermissions() {
-        try {
-            (Objects.requireNonNull(context.getSystemService(Context.AUDIO_SERVICE)) as AudioManager).setStreamMute(AudioManager.STREAM_SYSTEM, true)
-        } catch (exc: Exception) {
-            Log.e(TAG, exc.message, exc)
-        }
-
-        try {
-            if (isListening()) {
-                muteBeepSoundOfRecorder()
-                stopListening()
-            } else {
-                System.setProperty("rx.unsafe-disable", "True")
-                RxPermissions.getInstance(context).request(Manifest.permission.RECORD_AUDIO).subscribe { granted ->
-                    if (granted!!) {
-                        try {
-                            startListening()
-                        } catch (exc: SpeechRecognitionException) {
-                            throw exc
-                        }
-
-                    } else {
-                        throw SpeechRecognitionException("Permission not granted to use microphone")
-                    }
-                }
-            }
-        } finally {
-            muteBeepSoundOfRecorder()
-        }
-    }
-
     private fun isOnMainThread(): Boolean {
         return Looper.getMainLooper().isCurrentThread
     }
@@ -327,13 +301,12 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     /**
      * Function to remove the beep sound of voice recognizer.
      */
-    private fun muteBeepSoundOfRecorder() {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        audioManager.setStreamMute(AudioManager.STREAM_NOTIFICATION, true)
-        audioManager.setStreamMute(AudioManager.STREAM_ALARM, true)
-        audioManager.setStreamMute(AudioManager.STREAM_MUSIC, true)
-        audioManager.setStreamMute(AudioManager.STREAM_RING, true)
-        audioManager.setStreamMute(AudioManager.STREAM_SYSTEM, true)
+    private fun muteBeepSoundOfRecorder(shouldMute: Boolean)
+    {
+        //Beeping appears to occur on STREAM_MUSIC Android stream
+        val audioManager: AudioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val muteValue = if (shouldMute) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, muteValue, 0)
     }
 
     private fun updateLastActionTimestamp() {
