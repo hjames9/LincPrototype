@@ -20,18 +20,19 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
 
     private var mSpeechRecognizer: SpeechRecognizer? = null
     private var handler = Handler(Looper.getMainLooper())
-    private var mPreferOffline = false
-    private var mGetPartialResults = true
-    private var mIsListening = false
 
     private val mPartialData = ArrayList<String>()
     private var mUnstableData: String? = null
 
     private var mDelayedStopListening: DelayedOperation? = null
 
-    private var mLocale = Locale.getDefault()
-    private var mStopListeningDelayInMs: Long = 10000
-    private var mTransitionMinimumDelay: Long = 1200
+    var started = false
+    var preferOffline = false
+    var getPartialResults = true
+    var isListening = false
+    var locale : Locale = Locale.getDefault()
+    var stopListeningDelayInMs: Long = 10000
+    var transitionMinimumDelay: Long = 1200
     private var mLastActionTimestamp: Long = 0
     private var mLastPartialResults: List<String>? = null
 
@@ -99,7 +100,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
                 }
             }
 
-            mIsListening = false
+            isListening = false
 
             try {
                 delegate.onSpeechResult(result.trim { it <= ' ' })
@@ -121,8 +122,11 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     }
 
     fun startup() {
-        initSpeechRecognizer(context)
-        delegate.onStartup()
+        if (!started) {
+            initSpeechRecognizer(context)
+            delegate.onStartup()
+            started = true
+        }
     }
 
     private fun initSpeechRecognizer(context: Context) {
@@ -184,7 +188,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
             Log.e(TAG, exc.message, exc)
         }
 
-        mDelayedStopListening = DelayedOperation(context, "delayStopListening", mStopListeningDelayInMs)
+        mDelayedStopListening = DelayedOperation(context, "delayStopListening", stopListeningDelayInMs)
     }
 
     /**
@@ -192,6 +196,9 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      */
     @Synchronized
     fun shutdown() {
+        if (!started)
+            return
+
         val queue = LinkedBlockingQueue<Any>()
         val processed = handler.post {
             try {
@@ -200,7 +207,8 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
                         mSpeechRecognizer!!.stopListening()
                         mSpeechRecognizer!!.destroy()
                         mSpeechRecognizer = null
-                        mIsListening = false
+                        isListening = false
+                        started = false
                     } catch (exc: Exception) {
                         Log.e(TAG, "Warning while de-initing speech recognizer", exc)
                     }
@@ -235,7 +243,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      */
     @Throws(SpeechRecognitionException::class)
     fun startListening() {
-        if (isListening()) {
+        if (isListening) {
             muteBeepSoundOfRecorder(true)
             stopListening()
             return
@@ -244,7 +252,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
         val queue = LinkedBlockingQueue<Any>()
         val processed = handler.post {
             try {
-                if (mIsListening) return@post
+                if (isListening) return@post
 
                 if (mSpeechRecognizer == null)
                     throw SpeechRecognitionException("Speech recognition not available")
@@ -256,10 +264,10 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
 
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                         .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, mGetPartialResults)
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, mLocale.language)
+                        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, getPartialResults)
+                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale.language)
                         .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, mPreferOffline)
+                        .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
 
                 try {
                     mSpeechRecognizer!!.startListening(intent)
@@ -267,7 +275,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
                     throw SpeechRecognitionException("Google voice typing must be enabled")
                 }
 
-                mIsListening = true
+                isListening = true
                 updateLastActionTimestamp()
 
                 try {
@@ -319,7 +327,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     }
 
     private fun throttleAction(): Boolean {
-        return Date().time <= mLastActionTimestamp + mTransitionMinimumDelay
+        return Date().time <= mLastActionTimestamp + transitionMinimumDelay
     }
 
     /**
@@ -327,14 +335,14 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      * This method does nothing if voice listening is not active
      */
     fun stopListening() {
-        if (!mIsListening) return
+        if (!isListening) return
 
         if (throttleAction()) {
             Log.d(TAG, "Hey man calm down! Throttling stop to prevent disaster!")
             return
         }
 
-        mIsListening = false
+        isListening = false
         updateLastActionTimestamp()
         returnPartialResultsAndRecreateSpeechRecognizer()
     }
@@ -353,7 +361,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     }
 
     private fun returnPartialResultsAndRecreateSpeechRecognizer() {
-        mIsListening = false
+        isListening = false
         try {
             delegate.onSpeechResult(getPartialResultsAsString())
         } catch (exc: Throwable) {
@@ -365,71 +373,14 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     }
 
     /**
-     * Check if voice recognition is currently active.
-     *
-     * @return true if the voice recognition is on, false otherwise
-     */
-    fun isListening(): Boolean {
-        return mIsListening
-    }
-
-    /**
-     * Set whether to only use an offline speech recognition engine.
-     * The default is false, meaning that either network or offline recognition engines may be used.
-     *
-     * @param preferOffline true to prefer offline engine, false to use either one of the two
-     * @return speech instance
-     */
-    fun setPreferOffline(preferOffline: Boolean): SpeechToText {
-        mPreferOffline = preferOffline
-        return this
-    }
-
-    /**
-     * Set whether partial results should be returned by the recognizer as the user speaks
-     * (default is true). The server may ignore a request for partial results in some or all cases.
-     *
-     * @param getPartialResults true to get also partial recognition results, false otherwise
-     * @return speech instance
-     */
-    fun setGetPartialResults(getPartialResults: Boolean): SpeechToText {
-        mGetPartialResults = getPartialResults
-        return this
-    }
-
-    /**
-     * Sets text to speech and recognition language.
-     * Defaults to device language setting.
-     *
-     * @param locale new locale
-     * @return speech instance
-     */
-    fun setLocale(locale: Locale): SpeechToText {
-        mLocale = locale
-        return this
-    }
-
-    /**
      * Sets the idle timeout after which the listening will be automatically stopped.
      *
      * @param milliseconds timeout in milliseconds
      * @return speech instance
      */
     fun setStopListeningAfterInactivity(milliseconds: Long): SpeechToText {
-        mStopListeningDelayInMs = milliseconds
+        stopListeningDelayInMs = milliseconds
         initDelayedStopListening(context)
-        return this
-    }
-
-    /**
-     * Sets the minimum interval between start/stop events. This is useful to prevent
-     * monkey input from users.
-     *
-     * @param milliseconds minimum interval between state change in milliseconds
-     * @return speech instance
-     */
-    fun setTransitionMinimumDelay(milliseconds: Long): SpeechToText {
-        mTransitionMinimumDelay = milliseconds
         return this
     }
 }
