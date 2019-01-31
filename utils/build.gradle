@@ -9,10 +9,10 @@ apply plugin: 'maven-publish'
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    implementation "com.squareup.okhttp3:okhttp:3.11.0"
+    implementation "com.squareup.okhttp3:okhttp:3.12.1"
     implementation "commons-codec:commons-codec:1.9"
-    implementation "io.vertx:vertx-core:3.6.0"
-    implementation "io.vertx:vertx-lang-kotlin:3.6.0"
+    implementation "io.vertx:vertx-core:3.6.2"
+    implementation "io.vertx:vertx-lang-kotlin:3.6.2"
     implementation "org.slf4j:slf4j-simple:1.7.25"
 }
 
@@ -36,7 +36,7 @@ compileTestKotlin {
 
 def libraryGroupId = 'io.padium.utils'
 def libraryArtifactId = 'utils'
-def libraryVersion = '0.0.4'
+def libraryVersion = '0.0.5'
 
 publishing {
     publications {
