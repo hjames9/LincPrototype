@@ -19,12 +19,12 @@ class SpeechToTextService : Service(), SpeechDelegate {
         private val TAG = SpeechToTextService::class.java.simpleName
     }
 
-    private lateinit var speechToText: SpeechToText
+    private val speechToText = SpeechToText(this, this)
 
     override fun onCreate() {
         Log.i(TAG, "Creating SpeechToText service")
         super.onCreate()
-        speechToText = SpeechToText(this, this)
+        speechToText.startup()
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -42,6 +42,17 @@ class SpeechToTextService : Service(), SpeechDelegate {
     override fun onBind(intent: Intent): IBinder? {
         //TODO for communication return IBinder implementation
         return null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        speechToText.shutdown()
+    }
+
+    override fun onStartup() {
+    }
+
+    override fun onShutdown() {
     }
 
     override fun onStartOfSpeech() {

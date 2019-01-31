@@ -120,8 +120,9 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
         override fun onEvent(i: Int, bundle: Bundle) {}
     }
 
-    init {
+    fun startup() {
         initSpeechRecognizer(context)
+        delegate.onStartup()
     }
 
     private fun initSpeechRecognizer(context: Context) {
@@ -197,10 +198,14 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
                 if (mSpeechRecognizer != null) {
                     try {
                         mSpeechRecognizer!!.stopListening()
+                        mSpeechRecognizer!!.destroy()
+                        mSpeechRecognizer = null
+                        mIsListening = false
                     } catch (exc: Exception) {
                         Log.e(TAG, "Warning while de-initing speech recognizer", exc)
                     }
                 }
+                delegate.onShutdown()
                 queue.add(Any())
             } catch(exc: Exception) {
                 queue.add(exc)

@@ -10,10 +10,13 @@ import android.media.MediaPlayer
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.text.TextUtils
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import io.padium.audionlp.*
+import io.padium.audionlp.android.SpeechDelegate
+import io.padium.audionlp.android.SpeechToText
 import io.padium.linc.prototype.ble.LincBleDevice
 import io.padium.linc.prototype.ble.LincBleDeviceEvent
 import io.padium.linc.prototype.ble.ScaleLincBleDevice
@@ -65,6 +68,24 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private val speechToText = SpeechToText(this, object : SpeechDelegate {
+        override fun onStartup() {
+        }
+        override fun onShutdown() {
+        }
+        override fun onSpeechPartialResults(results: List<String>) {
+        }
+        override fun onSpeechResult(result: String) {
+            if(!TextUtils.isEmpty(result)) {
+                Toast.makeText(this@MainActivity, result, Toast.LENGTH_SHORT).show()
+            }
+        }
+        override fun onSpeechRmsChanged(value: Float) {
+        }
+        override fun onStartOfSpeech() {
+        }
+    })
+
     private lateinit var lincBleScale : LincBleDevice
     private lateinit var lincBleThermometer : LincBleDevice
     private lateinit var audioToText : AudioToText
@@ -72,11 +93,13 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
     private val utteranceProgressListener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) {
-            stopService(Intent(this@MainActivity, SpeechToTextService::class.java))
+            //stopService(Intent(this@MainActivity, SpeechToTextService::class.java))
+            speechToText.shutdown()
         }
 
         override fun onDone(utteranceId: String?) {
-            startService(Intent(this@MainActivity, SpeechToTextService::class.java))
+            //startService(Intent(this@MainActivity, SpeechToTextService::class.java))
+            speechToText.startup()
         }
 
         override fun onError(utteranceId: String?) {
@@ -145,7 +168,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         playMusicButton.setOnClickListener {
             try {
                 Log.i(TAG, "Playing audio file")
-                stopService(Intent(this, SpeechToTextService::class.java))
+                //stopService(Intent(this, SpeechToTextService::class.java))
+                speechToText.shutdown()
 
                 val audioAttributesBuilder = AudioAttributes.Builder()
                 audioAttributesBuilder.setLegacyStreamType(AudioManager.STREAM_ALARM)
@@ -155,7 +179,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 mediaPlayer.setDataSource("https://ia802508.us.archive.org/5/items/testmp3testfile/mpthreetest.mp3") //Has english words
                 mediaPlayer.setAudioAttributes(audioAttributesBuilder.build())
                 mediaPlayer.setOnCompletionListener {
-                    startService(Intent(this, SpeechToTextService::class.java))
+                    //startService(Intent(this, SpeechToTextService::class.java))
+                    speechToText.startup()
                 }
                 mediaPlayer.prepare()
                 mediaPlayer.start()
@@ -258,7 +283,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     private fun doAudioNlpService() {
-        startService(Intent(this, SpeechToTextService::class.java))
+        //startService(Intent(this, SpeechToTextService::class.java))
+        speechToText.startup()
     }
 
     private fun doTcpTest(tls : Boolean = false) {

@@ -2,6 +2,16 @@ package io.padium.audionlp.android
 
 interface SpeechDelegate {
     /**
+     * Invoked when speech recognition engine itself is started
+     */
+    fun onStartup()
+
+    /**
+     * Invoked when speech recognition engine itself is stopped
+     */
+    fun onShutdown()
+
+    /**
      * Invoked when the speech recognition is started.
      */
     fun onStartOfSpeech()
