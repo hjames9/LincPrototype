@@ -2,11 +2,9 @@ package io.padium.linc.prototype
 
 import android.Manifest
 import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
 import android.media.AudioManager
-import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -14,6 +12,13 @@ import android.text.TextUtils
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
+import com.google.android.exoplayer2.C
+import com.google.android.exoplayer2.ExoPlayerFactory
+import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.audio.AudioAttributes
+import com.google.android.exoplayer2.source.ExtractorMediaSource
+import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
+import com.google.android.exoplayer2.util.Util
 import io.padium.audionlp.*
 import io.padium.audionlp.android.SpeechDelegate
 import io.padium.audionlp.android.SpeechToText
@@ -167,23 +172,37 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         val playMusicButton : Button = findViewById(R.id.playMusicButton)
         playMusicButton.setOnClickListener {
             try {
-                Log.i(TAG, "Playing audio file")
-                //stopService(Intent(this, SpeechToTextService::class.java))
-                speechToText.shutdown()
+                val dsFactory = DefaultDataSourceFactory(this, Util.getUserAgent(this, "LincPrototype"))
+                val uri = Uri.parse("https://ia802508.us.archive.org/5/items/testmp3testfile/mpthreetest.mp3")
+                val videoSource = ExtractorMediaSource.Factory(dsFactory).createMediaSource(uri)
+
+                val exoPlayer = ExoPlayerFactory.newSimpleInstance(this)
 
                 val audioAttributesBuilder = AudioAttributes.Builder()
-                audioAttributesBuilder.setLegacyStreamType(AudioManager.STREAM_ALARM)
+                audioAttributesBuilder.setUsage(C.USAGE_ALARM)
+                exoPlayer.audioAttributes = audioAttributesBuilder.build()
 
-                val mediaPlayer = MediaPlayer()
-                //mediaPlayer.setDataSource("https://sample-videos.com/audio/mp3/wave.mp3")  //No words
-                mediaPlayer.setDataSource("https://ia802508.us.archive.org/5/items/testmp3testfile/mpthreetest.mp3") //Has english words
-                mediaPlayer.setAudioAttributes(audioAttributesBuilder.build())
-                mediaPlayer.setOnCompletionListener {
-                    //startService(Intent(this, SpeechToTextService::class.java))
-                    speechToText.startup()
+                val playbackStateString = { playbackState: Int ->
+                    when(playbackState) {
+                        Player.STATE_IDLE -> "idle"
+                        Player.STATE_BUFFERING -> "buffering"
+                        Player.STATE_READY -> "ready"
+                        Player.STATE_ENDED -> "ended"
+                        else -> "unknown"
+                    }
                 }
-                mediaPlayer.prepare()
-                mediaPlayer.start()
+
+                exoPlayer.addListener(object : Player.EventListener {
+                    override fun onPlayerStateChanged(playWhenReady: Boolean, playbackState: Int) {
+                        Log.i(TAG, "Media should be in ready: $playWhenReady in state ${playbackStateString(playbackState)}")
+                        when(playbackState) {
+                            Player.STATE_READY -> speechToText.shutdown()
+                            else -> speechToText.startup()
+                        }
+                    }
+                })
+                exoPlayer.prepare(videoSource)
+                exoPlayer.playWhenReady = true
             } catch(exc: Exception) {
                 Log.e(TAG, exc.message, exc)
             }
@@ -203,7 +222,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         when(status) {
             TextToSpeech.SUCCESS -> {
                 Log.i(TAG, "Successfully configured text to speech")
-                val audioAttributesBuilder = AudioAttributes.Builder()
+                val audioAttributesBuilder = android.media.AudioAttributes.Builder()
                 audioAttributesBuilder.setLegacyStreamType(AudioManager.STREAM_ALARM)
                 textToSpeech.setOnUtteranceProgressListener(utteranceProgressListener)
                 textToSpeech.setAudioAttributes(audioAttributesBuilder.build())
