@@ -19,19 +19,19 @@ class IrcClient(eventHandler: IrcClientEventHandler,
         override fun run() {
             while(running.get()) {
                 val serverStr = inFromServer.readLine()
+                serverStr ?: continue
                 Log.info("Received from server $serverStr")
-                if("PING".contains(serverStr)) {
+                if(serverStr.contains("PING")) {
                     val pong = "PONG ${serverStr.substring(6)}"
                     outToServer.writeBytes(pong)
                     Log.info("Received $serverStr and sent $pong")
-                } else if(" PRIVMSG ".contains(serverStr)) {
+                } else if(serverStr.contains(" PRIVMSG ")) {
                     val main = serverStr.split(" PRIVMSG ")
                     val first = main[0].split("!")
                     val second = main[1].split(":")
                     eventHandler.onMessage(first[0].substring(1).trim(),
                             second[1].trim(), second[0].trim())
                 }
-                Thread.sleep(300)
             }
         }
     }
