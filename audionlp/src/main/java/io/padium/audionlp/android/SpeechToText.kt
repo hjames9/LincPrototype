@@ -124,9 +124,9 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     fun startup() {
         if (!started) {
             initSpeechRecognizer(context)
-            delegate.onStartup()
             started = true
         }
+        delegate.onStartup()
     }
 
     private fun initSpeechRecognizer(context: Context) {
@@ -196,8 +196,10 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
      */
     @Synchronized
     fun shutdown() {
-        if (!started)
+        if (!started) {
+            delegate.onShutdown()
             return
+        }
 
         val queue = LinkedBlockingQueue<Any>()
         val processed = handler.post {
