@@ -36,7 +36,7 @@ compileTestKotlin {
 
 def libraryGroupId = 'io.padium.utils'
 def libraryArtifactId = 'utils'
-def libraryVersion = '0.0.8'
+def libraryVersion = '0.0.10'
 
 publishing {
     publications {

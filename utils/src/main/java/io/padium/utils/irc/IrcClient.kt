@@ -22,9 +22,7 @@ class IrcClient(eventHandler: IrcClientEventHandler,
                 serverStr ?: continue
                 Log.info("Received from server $serverStr")
                 if(serverStr.contains("PING")) {
-                    val pong = "PONG ${serverStr.substring(6)}"
-                    outToServer.writeBytes(pong)
-                    Log.info("Received $serverStr and sent $pong")
+                    pongNetwork(serverStr.substring(6))
                 } else if(serverStr.contains(" PRIVMSG ")) {
                     val main = serverStr.split(" PRIVMSG ")
                     val first = main[0].split("!")
@@ -44,14 +42,30 @@ class IrcClient(eventHandler: IrcClientEventHandler,
     init {
         Log.info("Nickname: $nickName, Host: $host, Port: $port")
         changeNick(nickName)
-        outToServer.writeBytes("USER $nickName * * :$nickName Robot\r\n")
+        userNetwork(nickName)
         listener.start()
     }
 
     override fun close() {
         Log.info("close")
+        quitNetwork("Leaving for now")
         running.set(false)
         clientSocket.close()
+    }
+
+    fun pongNetwork(message : String) {
+        Log.info("pongNetwork")
+        outToServer.writeBytes("PONG $message\r\n")
+    }
+
+    fun quitNetwork(message : String) {
+        Log.info("quitNetwork")
+        outToServer.writeBytes("QUIT :$message\r\n")
+    }
+
+    fun userNetwork(nickName : String) {
+        Log.info("userNetwork")
+        outToServer.writeBytes("USER $nickName * * :$nickName Robot\r\n")
     }
 
     fun changeNick(nickName : String) {
