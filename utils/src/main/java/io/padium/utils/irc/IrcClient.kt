@@ -7,9 +7,10 @@ import java.io.DataOutputStream
 import java.io.InputStreamReader
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
+import javax.net.ssl.SSLSocketFactory
 
 class IrcClient(eventHandler: IrcClientEventHandler,
-                nickName: String, host: String, port: Int = 6667) : Closeable {
+                nickName: String, host: String, port: Int = 6667, tls: Boolean = false) : Closeable {
     companion object {
         private val TAG = IrcClient::class.java.simpleName
         private val Log = Logger.getLogger(TAG)
@@ -35,12 +36,24 @@ class IrcClient(eventHandler: IrcClientEventHandler,
     }
 
     private val running = AtomicBoolean(true)
-    private val clientSocket = Socket(host, port)
-    private val outToServer = DataOutputStream(clientSocket.getOutputStream())
-    private val inFromServer = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+    private val clientSocket : Socket
+    private val outToServer : DataOutputStream
+    private val inFromServer : BufferedReader
 
     init {
         Log.info("Nickname: $nickName, Host: $host, Port: $port")
+
+        clientSocket = when (tls) {
+            true -> {
+                val sslSocketFactory = SSLSocketFactory.getDefault()
+                sslSocketFactory.createSocket(host, port)
+            }
+            false -> Socket(host, port)
+        }
+
+        outToServer = DataOutputStream(clientSocket.getOutputStream())
+        inFromServer = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+
         changeNick(nickName)
         userNetwork(nickName)
         listener.start()

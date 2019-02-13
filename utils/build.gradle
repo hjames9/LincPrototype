@@ -8,6 +8,7 @@ apply plugin: 'maven-publish'
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+    testImplementation "junit:junit:4.12"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "com.squareup.okhttp3:okhttp:3.12.1"
     implementation "commons-codec:commons-codec:1.9"
