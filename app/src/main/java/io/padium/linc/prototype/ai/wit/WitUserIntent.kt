@@ -62,7 +62,8 @@ class WitUserIntent {
                 mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN"))
 
         if(HttpUtils.isSuccess(response.first)) {
-            var json = JSONObject(response.second)
+            val json = JSONObject(response.second)
+            Log.i(TAG, "Received json $json")
         }
 
         return listOf()

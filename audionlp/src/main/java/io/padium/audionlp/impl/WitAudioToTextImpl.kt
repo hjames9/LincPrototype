@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-internal class WitAudioToTextImpl(context: Context, private val recording: AtomicBoolean) : AudioToTextImpl {
+internal class WitAudioToTextImpl(@Suppress("UNUSED_PARAMETER") context: Context, private val recording: AtomicBoolean) : AudioToTextImpl {
     companion object {
         private val TAG = WitAudioToTextImpl::class.java.simpleName
         private const val WIT_BASE_URL = "https://api.wit.ai"
