@@ -6,10 +6,10 @@ import io.vertx.core.VertxException
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.net.NetClientOptions
 import io.vertx.core.net.NetSocket
-import io.vertx.kotlin.core.net.PfxOptions
 import io.vertx.core.file.FileSystemException
 import io.vertx.core.net.PemTrustOptions
 import io.vertx.core.streams.Pump
+import io.vertx.kotlin.core.net.pfxOptionsOf
 import java.io.File
 import java.io.IOException
 import java.security.KeyStore
@@ -42,7 +42,7 @@ object TcpUtils {
             //Client key store
             val keyStoreFile = "$keysDirectory/keystore.p12"
             val clientKeyStoreBuffer = vertx.fileSystem().readFileBlocking(keyStoreFile)
-            val pfxOptions = PfxOptions(value = clientKeyStoreBuffer, password = "admin123")
+            val pfxOptions = pfxOptionsOf(value = clientKeyStoreBuffer, password = "admin123")
             clientOptions.pfxKeyCertOptions = pfxOptions
         } catch (e: NoSuchFileException) {
             throw TcpException(e.message, e)
@@ -60,7 +60,7 @@ object TcpUtils {
             if(!useInternalCerts || File("$keysDirectory/truststore.p12").exists()) {
                 val trustStoreFile = "$keysDirectory/truststore.p12"
                 val clientTrustStoreBuffer = vertx.fileSystem().readFileBlocking(trustStoreFile)
-                val trustOptions = PfxOptions(value = clientTrustStoreBuffer, password = "admin123")
+                val trustOptions = pfxOptionsOf(value = clientTrustStoreBuffer, password = "admin123")
                 clientOptions.pfxTrustOptions = trustOptions
             } else {
                 val trustOptions = PemTrustOptions().addCertValue(Buffer.buffer(getAndroidRootCertificates()))
