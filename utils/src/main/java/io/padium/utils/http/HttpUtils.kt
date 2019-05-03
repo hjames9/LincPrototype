@@ -1,45 +1,63 @@
 package io.padium.utils.http
 
-import okhttp3.MediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
-import okio.BufferedSink
+import io.vertx.core.AsyncResult
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import org.apache.commons.codec.net.URLCodec
-import java.io.OutputStream
 import java.lang.StringBuilder
-import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSocketFactory
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
+import java.net.URL
+import java.util.*
+import kotlin.collections.LinkedHashMap
+import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.buffer.Buffer
+import io.vertx.core.net.PemKeyCertOptions
+import io.vertx.core.net.PemTrustOptions
+import io.vertx.core.streams.ReadStream
+import io.vertx.ext.web.client.HttpResponse
+import io.vertx.ext.web.client.WebClient
+import java.io.ByteArrayOutputStream
+import java.io.OutputStream
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Future
 
 enum class HttpMethod {
     GET, HEAD, POST, OPTIONS, PUT, PATCH, DELETE
 }
 
 object HttpUtils {
-    private val client : OkHttpClient
+    private const val CONTENT_TYPE = "content-type"
 
-    init {
-        val builder = OkHttpClient.Builder()
-        builder.connectTimeout(0, TimeUnit.SECONDS)
-        builder.readTimeout(0, TimeUnit.SECONDS)
-        builder.writeTimeout(0, TimeUnit.SECONDS)
-        //val tlsConfig = buildTlsFactory()
-        //builder.sslSocketFactory(tlsConfig.first, tlsConfig.second)
-        //TODO: Add client side TLS
-        client = builder.build()
-    }
+    private val vertx = Vertx.vertx()
+    private val clients = lruCache<URL, WebClient>()
 
     @JvmStatic
-    private fun buildTlsFactory(): Pair<SSLSocketFactory, X509TrustManager> {
-        val sslContext = SSLContext.getInstance("TLS")
-        val tmf = TrustManagerFactory.getInstance("TLS")
-        val x509TrustManager = tmf.trustManagers[0] as X509TrustManager
+    private fun getHttpClient(urlStr: String, ca: String,
+                              cert: String, key: String) : WebClient {
+        val url = URL(urlStr)
+        var client = clients[url]
 
-        return Pair<SSLSocketFactory, X509TrustManager>(sslContext.socketFactory,
-                x509TrustManager)
+        if(null == client) {
+            val options = HttpClientOptions()
+
+            //Configure TLS
+            if (ca.isNotEmpty()) {
+                options.isSsl = true
+                options.isTrustAll = false
+                options.pemTrustOptions = PemTrustOptions().addCertValue(Buffer.buffer(ca))
+            }
+            if(cert.isNotEmpty() && key.isNotEmpty()) {
+                options.isSsl = true
+                options.pemKeyCertOptions = PemKeyCertOptions().addCertValue(Buffer.buffer(cert)).addKeyValue(Buffer.buffer(key))
+            }
+            if("https".equals(url.protocol, ignoreCase = true)) {
+                options.isSsl = true
+            }
+
+            client = WebClient.wrap(vertx.createHttpClient(options))
+            clients[url] = client
+        }
+
+        return client!!
     }
 
     @JvmStatic
@@ -91,75 +109,128 @@ object HttpUtils {
     }
 
     @JvmStatic
-    fun requestText(url: String, method: HttpMethod, contentType: String = "", requestBody: String = "",
-                    requestHeaders : Map<String, String> = mapOf()): Triple<Int, String?, Map<String, List<String>>> {
-        val mediaType  = MediaType.parse(contentType)
-        val body = RequestBody.create(mediaType, requestBody)
-        return request(url, method, body, requestHeaders)
+    fun requestText(urlStr: String, method: HttpMethod, contentType: String = "", requestBody: String = "",
+                    requestHeaders : Map<String, String> = mapOf(),
+                    ca: String = "", cert: String = "", key: String = ""): Future<Triple<Int, String?, Map<String, List<String>>>> {
+        val body = Buffer.buffer(requestBody)
+        return request(urlStr, method, contentType, requestHeaders, body, ca, cert, key)
     }
 
     @JvmStatic
-    fun requestBinary(url: String, method: HttpMethod, contentType: String, requestBody: ByteArray = byteArrayOf(),
-                      requestHeaders : Map<String, String> = mapOf()): Triple<Int, String?, Map<String, List<String>>> {
-        val mediaType  = MediaType.parse(contentType)
-        val body = RequestBody.create(mediaType, requestBody)
-        return request(url, method, body, requestHeaders)
+    fun requestBinary(urlStr: String, method: HttpMethod, contentType: String, requestBody: ByteArray = byteArrayOf(),
+                      requestHeaders : Map<String, String> = mapOf(),
+                      ca: String = "", cert: String = "", key: String = ""): Future<Triple<Int, String?, Map<String, List<String>>>> {
+        val body = Buffer.buffer(requestBody)
+        return request(urlStr, method, contentType, requestHeaders, body, ca, cert, key)
     }
 
     @JvmStatic
-    fun requestBinary(url: String, method: HttpMethod, contentType: String, requestBody: ByteArray,
-                      offset: Int, byteCount: Int, requestHeaders : Map<String, String> = mapOf()):
-            Triple<Int, String?, Map<String, List<String>>> {
-        val mediaType  = MediaType.parse(contentType)
-        val body = RequestBody.create(mediaType, requestBody, offset, byteCount)
-        return request(url, method, body, requestHeaders)
+    fun requestBinary(urlStr: String, method: HttpMethod, contentType: String, requestBody: ByteArray,
+                      offset: Int, byteCount: Int, requestHeaders : Map<String, String> = mapOf(),
+                      ca: String = "", cert: String = "", key: String = ""):
+            Future<Triple<Int, String?, Map<String, List<String>>>> {
+        val body = Buffer.buffer(Arrays.copyOfRange(requestBody, offset, offset + byteCount))
+        return request(urlStr, method, contentType, requestHeaders, body, ca, cert, key)
     }
 
     @JvmStatic
-    fun requestBinary(url: String, method: HttpMethod, contentType: String,
-                      streamer: (stream: OutputStream) -> Unit,
-                      requestHeaders : Map<String, String> = mapOf()):
-            Triple<Int, String?, Map<String, List<String>>> {
-         val body = object : RequestBody() {
-            override fun contentType(): MediaType? {
-                return MediaType.parse(contentType)
+    fun requestBinary(urlStr: String, method: HttpMethod, contentType: String,
+                      streamer: (stream: OutputStream) -> Unit, requestHeaders : Map<String, String> = mapOf(),
+                      ca: String = "", cert: String = "", key: String = ""):
+            Future<Triple<Int, String?, Map<String, List<String>>>> {
+        val outputStream = ByteArrayOutputStream()
+        val body = object : ReadStream<Buffer> {
+            override fun endHandler(endHandler: Handler<Void>?): ReadStream<Buffer> {
+                return this
             }
-            override fun writeTo(sink: BufferedSink) {
-                streamer(sink.outputStream())
+            override fun exceptionHandler(handler: Handler<Throwable>?): ReadStream<Buffer> {
+                return this
+            }
+            override fun fetch(amount: Long): ReadStream<Buffer> {
+                return this
+            }
+            override fun handler(handler: Handler<Buffer>?): ReadStream<Buffer> {
+                streamer(outputStream)
+                handler?.handle(Buffer.buffer(outputStream.toByteArray()))
+                outputStream.reset()
+                return this
+            }
+            override fun pause(): ReadStream<Buffer> {
+                return this
+            }
+            override fun resume(): ReadStream<Buffer> {
+                return this
             }
         }
-        return request(url, method, body, requestHeaders)
+        return request(urlStr, method, contentType, requestHeaders, body, ca, cert, key)
+    }
+
+
+    @JvmStatic
+    private fun request(urlStr: String, method: HttpMethod, contentType: String,
+                        requestHeaders : Map<String, String>, requestBody: Any,
+                        ca: String, cert: String, key: String): Future<Triple<Int, String?, Map<String, List<String>>>> {
+        val vertxMethod = when(method) {
+            HttpMethod.GET -> io.vertx.core.http.HttpMethod.GET
+            HttpMethod.HEAD -> io.vertx.core.http.HttpMethod.HEAD
+            HttpMethod.OPTIONS -> io.vertx.core.http.HttpMethod.OPTIONS
+            HttpMethod.POST -> io.vertx.core.http.HttpMethod.POST
+            HttpMethod.PUT -> io.vertx.core.http.HttpMethod.PUT
+            HttpMethod.PATCH -> io.vertx.core.http.HttpMethod.PATCH
+            HttpMethod.DELETE -> io.vertx.core.http.HttpMethod.DELETE
+        }
+
+        val future = CompletableFuture<Triple<Int, String?, Map<String, List<String>>>>()
+        val client = getHttpClient(urlStr, ca, cert, key)
+        val url = URL(urlStr)
+        val port = when(url.port) {-1 -> url.defaultPort else -> url.port}
+
+        val request = client.request(vertxMethod, port, url.host, url.path)
+        request.putHeader(CONTENT_TYPE, contentType)
+        requestHeaders.forEach {
+            request.putHeader(it.key, it.value)
+        }
+
+        val responseHandler : (AsyncResult<HttpResponse<Buffer>>) -> Unit = { response ->
+            if(response.succeeded()) {
+                val result = response.result()
+                val headers = result.headers()
+                val headersMap = mutableMapOf<String, MutableList<String>>()
+                headers.forEach {
+                    var list = headersMap[it.key]
+                    if(null == list) {
+                        list = ArrayList()
+                        headersMap[it.key] = list
+                    }
+                    list.add(it.value)
+                }
+                future.complete(Triple(result.statusCode(), result.body().toString(),
+                        headersMap))
+            } else {
+                future.completeExceptionally(response.cause())
+            }
+        }
+
+        if(requestBody is Buffer) {
+            if (requestBody.bytes.isEmpty()) {
+                request.send(responseHandler)
+            } else {
+                request.sendBuffer(requestBody, responseHandler)
+            }
+        } else if(requestBody is ReadStream<*>) {
+            @Suppress("UNCHECKED_CAST")
+            request.sendStream(requestBody as ReadStream<Buffer>, responseHandler)
+        }
+        return future
     }
 
     @JvmStatic
-    private fun request(url: String, method: HttpMethod, requestBody: RequestBody,
-                        requestHeaders : Map<String, String>):
-            Triple<Int, String?, Map<String, List<String>>> {
-        //Build request with method
-        val request = Request.Builder().url(url)
-        when(method) {
-            HttpMethod.GET -> request.get()
-            HttpMethod.HEAD -> request.head()
-            HttpMethod.OPTIONS -> request.method(HttpMethod.OPTIONS.toString(), requestBody)
-            HttpMethod.POST -> request.post(requestBody)
-            HttpMethod.PUT -> request.put(requestBody)
-            HttpMethod.PATCH -> request.patch(requestBody)
-            HttpMethod.DELETE -> request.delete(requestBody)
+    private fun <K, V> lruCache(maxSize: Int = 2000): MutableMap<K, V> {
+        val cache = object : LinkedHashMap<K, V>(maxSize * 4 / 3, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<K, V>): Boolean {
+                return size > maxSize
+            }
         }
-
-        //Request headers
-        for(requestHeader in requestHeaders)
-            request.addHeader(requestHeader.key, requestHeader.value)
-
-        val response = client.newCall(request.build()).execute()
-
-        val headersMap = mutableMapOf<String, List<String>>()
-        val headers = response.headers()
-        for(iterator in 0 until headers.size()) {
-            val headerName = headers.name(iterator)
-            headersMap[headerName] = headers.values(headerName)
-        }
-
-        return Triple(response.code(), response.body()?.string(), headersMap)
+        return Collections.synchronizedMap(cache)
     }
 }

@@ -26,6 +26,8 @@ import io.padium.linc.prototype.ble.LincBleDevice
 import io.padium.linc.prototype.ble.LincBleDeviceEvent
 import io.padium.linc.prototype.ble.ScaleLincBleDevice
 import io.padium.linc.prototype.ble.ThermometerLincBleDevice
+import io.padium.utils.http.HttpMethod
+import io.padium.utils.http.HttpUtils
 import io.padium.utils.tcp.TcpCallback
 import io.padium.utils.tcp.TcpConnection
 import io.padium.utils.tcp.TcpUtils
@@ -43,6 +45,52 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         private const val BLE_SCALE_PERMISSION = 1000
         private const val BLE_THERMOMETER_PERMISSION = 1001
         private const val MICROPHONE_PERMISSION = 1002
+
+        private const val KEY =
+                "-----BEGIN PRIVATE KEY-----\n" +
+                "MIG2AgEAMBAGByqGSM49AgEGBSuBBAAiBIGeMIGbAgEBBDD/DQsDO4AMBQVQXBgr\n" +
+                "yj9mVMGwIB5yZFZ8UP8KoJY5RRg449nywkaEknKZCU39bC6hZANiAASjmEGpF7hg\n" +
+                "t2VFG3H4/9Lg1Hzn5jysVJR1cVj5McxaAnzcZooSCejwFdWd1Di50sNlIk97NvWF\n" +
+                "wsIERRB0zWvbGQ/fMa0T3z7qEND4vblsRwuj5fTTJzola5pXMvqSO78=\n" +
+                "-----END PRIVATE KEY-----"
+
+        private const val CERT =
+                "-----BEGIN CERTIFICATE-----\n" +
+                "MIICnjCCAiSgAwIBAgIJAJ5PgZylmuUkMAoGCCqGSM49BAMCMIGlMQswCQYDVQQG\n" +
+                "EwJVUzETMBEGA1UECAwKTmV3IEplcnNleTEQMA4GA1UEBwwHSG9ib2tlbjEYMBYG\n" +
+                "A1UECgwPUGFkaXVtIExhYnMgTExDMRkwFwYDVQQLDBBMaW5jIEVuZ2luZWVyaW5n\n" +
+                "MRkwFwYDVQQDDBBoYXlkZW4ucGFkaXVtLmlvMR8wHQYJKoZIhvcNAQkBFhBoYXlk\n" +
+                "ZW5AcGFkaXVtLmlvMB4XDTE5MDUwMjExMTQ1NVoXDTIwMDUwMTExMTQ1NVowgaUx\n" +
+                "CzAJBgNVBAYTAlVTMRMwEQYDVQQIDApOZXcgSmVyc2V5MRAwDgYDVQQHDAdIb2Jv\n" +
+                "a2VuMRgwFgYDVQQKDA9QYWRpdW0gTGFicyBMTEMxGTAXBgNVBAsMEExpbmMgRW5n\n" +
+                "aW5lZXJpbmcxGTAXBgNVBAMMEGhheWRlbi5wYWRpdW0uaW8xHzAdBgkqhkiG9w0B\n" +
+                "CQEWEGhheWRlbkBwYWRpdW0uaW8wdjAQBgcqhkjOPQIBBgUrgQQAIgNiAASjmEGp\n" +
+                "F7hgt2VFG3H4/9Lg1Hzn5jysVJR1cVj5McxaAnzcZooSCejwFdWd1Di50sNlIk97\n" +
+                "NvWFwsIERRB0zWvbGQ/fMa0T3z7qEND4vblsRwuj5fTTJzola5pXMvqSO7+jHjAc\n" +
+                "MBoGA1UdEQQTMBGCCWxvY2FsaG9zdIcEwKgBpDAKBggqhkjOPQQDAgNoADBlAjEA\n" +
+                "7Bk1BTVa/Q4OVikWKH0xskog+6J2gbER1591/b4hSNbH+ZnhVpAhaZk0goaJDaLM\n" +
+                "AjAZYnVAt6OIlJs4lvQ3K0iqF9keJJEdd4j9ktMEbF49G11VxkDtTNHLFhXqdHCd\n" +
+                "XOs=\n" +
+                "-----END CERTIFICATE-----"
+
+        private const val CA =
+                "-----BEGIN CERTIFICATE-----\n" +
+                "MIICnTCCAiSgAwIBAgIJAMVJvuCa14m4MAoGCCqGSM49BAMCMIGlMQswCQYDVQQG\n" +
+                "EwJVUzETMBEGA1UECAwKTmV3IEplcnNleTEQMA4GA1UEBwwHSG9ib2tlbjEYMBYG\n" +
+                "A1UECgwPUGFkaXVtIExhYnMgTExDMRkwFwYDVQQLDBBMaW5jIEVuZ2luZWVyaW5n\n" +
+                "MRkwFwYDVQQDDBBoYXlkZW4ucGFkaXVtLmlvMR8wHQYJKoZIhvcNAQkBFhBoYXlk\n" +
+                "ZW5AcGFkaXVtLmlvMB4XDTE5MDUwMjExMTYwNVoXDTIwMDUwMTExMTYwNVowgaUx\n" +
+                "CzAJBgNVBAYTAlVTMRMwEQYDVQQIDApOZXcgSmVyc2V5MRAwDgYDVQQHDAdIb2Jv\n" +
+                "a2VuMRgwFgYDVQQKDA9QYWRpdW0gTGFicyBMTEMxGTAXBgNVBAsMEExpbmMgRW5n\n" +
+                "aW5lZXJpbmcxGTAXBgNVBAMMEGhheWRlbi5wYWRpdW0uaW8xHzAdBgkqhkiG9w0B\n" +
+                "CQEWEGhheWRlbkBwYWRpdW0uaW8wdjAQBgcqhkjOPQIBBgUrgQQAIgNiAARJTcAM\n" +
+                "/YtzLNnkqsKud8OmqnuuT4qcs3tVVjW8MyJ3vRni2YRSZy9llkSQfe76sz4xLiWw\n" +
+                "2Dz9X9HZPZGoo/XOfWlj2Tke+i1stNl6R8ZqpyxSIbb06opFt3nqtkT0VB6jHjAc\n" +
+                "MBoGA1UdEQQTMBGCCWxvY2FsaG9zdIcEwKgB6jAKBggqhkjOPQQDAgNnADBkAjB4\n" +
+                "p0Wmhw261uOQIbzcz6q6k5x8CekMGVSxl0pD2nCe+dwblHpG4vL4xLuwOmPtoIcC\n" +
+                "MA16LeytiVqUKrWxqDgZ6ButPWBIsrgGJNisaKBPpC/0EGF1R6f9XDdfydrNV2rC\n" +
+                "ZA==\n" +
+                "-----END CERTIFICATE-----\n"
     }
 
     private val bleDeviceEvent  = object : LincBleDeviceEvent {
@@ -163,6 +211,11 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         tcpButton.setOnClickListener {
             doTcpTest(false)
             doTcpTest(true)
+        }
+
+        val httpButton : Button = findViewById(R.id.httpButton)
+        httpButton.setOnClickListener {
+            doHttpTest()
         }
 
         //Attempt to start scans at startup
@@ -360,6 +413,18 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             } else {
                 TcpUtils.doTcpConnection("192.168.1.234", 7, callback)
             }
+        }
+    }
+
+    private fun doHttpTest() {
+        try {
+            val result = HttpUtils.requestText("https://192.168.1.234:31337/devices", HttpMethod.GET,
+                    ca = CA, cert = CERT, key = KEY)
+            val response = result.get(10, TimeUnit.SECONDS)
+            Toast.makeText(this, response.second, Toast.LENGTH_SHORT).show()
+            Log.i(TAG, "Response code: ${response.first} data: ${response.second}")
+        } catch(th: Throwable) {
+            Toast.makeText(this, th.message, Toast.LENGTH_LONG).show()
         }
     }
 }

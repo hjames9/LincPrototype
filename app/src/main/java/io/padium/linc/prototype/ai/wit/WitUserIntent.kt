@@ -5,6 +5,7 @@ import io.padium.utils.http.HttpMethod
 import io.padium.utils.http.HttpUtils
 import org.json.JSONObject
 import java.lang.StringBuilder
+import java.util.concurrent.TimeUnit
 
 class WitUserIntent {
     companion object {
@@ -43,8 +44,9 @@ class WitUserIntent {
     fun processPhrases() {
         for(phrase in PHRASES) {
             val url = "$WIT_BASE_URL/message${HttpUtils.buildRequestParameters(mapOf("q" to phrase))}"
-            val response = HttpUtils.requestText(url, HttpMethod.GET, OCTET_STREAM_CONTENT_TYPE,
+            val result = HttpUtils.requestText(url, HttpMethod.GET, OCTET_STREAM_CONTENT_TYPE,
                     "", mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN"))
+            val response = result.get(10, TimeUnit.SECONDS)
             Log.i(TAG, "Sending request to $url got response code ${response.first}, body ${response.second}")
             Thread.sleep(5000)
         }
@@ -52,14 +54,16 @@ class WitUserIntent {
 
     fun getUserIntent() {
         val authHeader = mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN")
-        Log.i(TAG, HttpUtils.requestText(WIT_BASE_URL, HttpMethod.POST, JSON_CONTENT_TYPE,
-                "", authHeader).second)
+        val result = HttpUtils.requestText(WIT_BASE_URL, HttpMethod.POST, JSON_CONTENT_TYPE, "", authHeader)
+        val response = result.get(10, TimeUnit.SECONDS)
+        Log.i(TAG, response.second)
     }
 
     fun getEntities(): List<String> {
         val url = "$WIT_BASE_URL/entities"
-        val response = HttpUtils.requestText(url, HttpMethod.GET, OCTET_STREAM_CONTENT_TYPE, "",
+        val result = HttpUtils.requestText(url, HttpMethod.GET, OCTET_STREAM_CONTENT_TYPE, "",
                 mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN"))
+        val response = result.get(10, TimeUnit.SECONDS)
 
         if(HttpUtils.isSuccess(response.first)) {
             val json = JSONObject(response.second)
@@ -71,8 +75,9 @@ class WitUserIntent {
 
     fun getMessage() {
         val url = "$WIT_BASE_URL/message${HttpUtils.buildRequestParameters(mapOf("q" to "set an alarm tomorrow at 7am"))}"
-        val response = HttpUtils.requestText(url, HttpMethod.GET, OCTET_STREAM_CONTENT_TYPE,
+        val result = HttpUtils.requestText(url, HttpMethod.GET, OCTET_STREAM_CONTENT_TYPE,
                 "", mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN"))
+        val response = result.get(10, TimeUnit.SECONDS)
         Log.i(TAG, "Sending request to $url got response code ${response.first}, body ${response.second}")
 
         val str = StringBuilder()

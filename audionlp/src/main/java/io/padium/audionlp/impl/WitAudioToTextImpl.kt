@@ -34,7 +34,8 @@ internal class WitAudioToTextImpl(@Suppress("UNUSED_PARAMETER") context: Context
             while (keepAliveRunning.get()) {
                 val elaspedTime = System.currentTimeMillis() - lastRequestTime.get()
                 if (elaspedTime > 30000) {
-                    val response = HttpUtils.requestText(keepAliveUrl, HttpMethod.HEAD)
+                    val result = HttpUtils.requestText(keepAliveUrl, HttpMethod.HEAD)
+                    val response = result.get(10, TimeUnit.SECONDS)
                     lastRequestTime.set(System.currentTimeMillis())
                     when {
                         HttpUtils.isSuccess(response.first) -> Log.i(TAG, response.second)
@@ -94,7 +95,7 @@ internal class WitAudioToTextImpl(@Suppress("UNUSED_PARAMETER") context: Context
 
     private fun getResponseContentType(headers : Map<String, List<String>>): String? {
         val header = headers["Content-Type"]
-        return when(null != header && !header.isEmpty()) {
+        return when(null != header && header.isNotEmpty()) {
             true -> header?.get(0)
             false -> ""
         }
@@ -108,8 +109,10 @@ internal class WitAudioToTextImpl(@Suppress("UNUSED_PARAMETER") context: Context
         val requestHeaders = mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN",
                 TRANSFER_ENCODING_HEADER to "chunked")
 
-        val response = HttpUtils.requestBinary(url, HttpMethod.POST, contentType,
+        val result = HttpUtils.requestBinary(url, HttpMethod.POST, contentType,
                 streamer, requestHeaders)
+
+        val response = result.get(10, TimeUnit.SECONDS)
 
         return processCloudResponse(response)
     }
@@ -126,8 +129,10 @@ internal class WitAudioToTextImpl(@Suppress("UNUSED_PARAMETER") context: Context
 
         val requestHeaders = mapOf(AUTHORIZATION_HEADER to "Bearer $TOKEN")
 
-        val response = HttpUtils.requestBinary(url, HttpMethod.POST, contentType,
+        val result = HttpUtils.requestBinary(url, HttpMethod.POST, contentType,
                 data, offset, byteCount, requestHeaders)
+
+        val response = result.get(10, TimeUnit.SECONDS)
 
         return processCloudResponse(response)
     }
