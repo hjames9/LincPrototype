@@ -27,8 +27,14 @@ enum class HttpMethod {
 object HttpUtils {
     private const val CONTENT_TYPE = "content-type"
 
-    private val vertx = Vertx.vertx()
+    private val vertx : Vertx
     private val clients = lruCache<URL, WebClient>()
+
+    init {
+        System.setProperty("vertx.disableFileCPResolving", "true")
+        System.setProperty("vertx.disableDnsResolver", "true")
+        vertx = Vertx.vertx()
+    }
 
     @JvmStatic
     private fun getHttpClient(urlStr: String, ca: String,
