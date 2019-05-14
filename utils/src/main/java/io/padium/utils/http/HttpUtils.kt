@@ -1,13 +1,13 @@
 package io.padium.utils.http
 
+import io.padium.utils.Utils
+
+import org.apache.commons.codec.net.URLCodec
+import kotlin.collections.LinkedHashMap
+
 import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
-import org.apache.commons.codec.net.URLCodec
-import java.lang.StringBuilder
-import java.net.URL
-import java.util.*
-import kotlin.collections.LinkedHashMap
 import io.vertx.core.http.HttpClientOptions
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.net.PemKeyCertOptions
@@ -15,6 +15,10 @@ import io.vertx.core.net.PemTrustOptions
 import io.vertx.core.streams.ReadStream
 import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
+
+import java.lang.StringBuilder
+import java.net.URL
+import java.util.*
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.util.concurrent.CompletableFuture
@@ -28,7 +32,7 @@ object HttpUtils {
     private const val CONTENT_TYPE = "content-type"
 
     private val vertx : Vertx
-    private val clients = lruCache<URL, WebClient>()
+    private val clients = Utils.lruCache<URL, WebClient>()
 
     init {
         System.setProperty("vertx.disableFileCPResolving", "true")
@@ -228,15 +232,5 @@ object HttpUtils {
             request.sendStream(requestBody as ReadStream<Buffer>, responseHandler)
         }
         return future
-    }
-
-    @JvmStatic
-    private fun <K, V> lruCache(maxSize: Int = 2000): MutableMap<K, V> {
-        val cache = object : LinkedHashMap<K, V>(maxSize * 4 / 3, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<K, V>): Boolean {
-                return size > maxSize
-            }
-        }
-        return Collections.synchronizedMap(cache)
     }
 }
