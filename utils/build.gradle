@@ -12,9 +12,9 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "com.squareup.okhttp3:okhttp:3.12.1"
     implementation "commons-codec:commons-codec:1.10"
-    implementation "io.vertx:vertx-core:3.7.0"
-    implementation "io.vertx:vertx-lang-kotlin:3.7.0"
-    implementation "io.vertx:vertx-web-client:3.7.0"
+    implementation "io.vertx:vertx-core:3.7.1"
+    implementation "io.vertx:vertx-lang-kotlin:3.7.1"
+    implementation "io.vertx:vertx-web-client:3.7.1"
     implementation "org.slf4j:slf4j-simple:1.7.25"
 }
 
@@ -38,7 +38,7 @@ compileTestKotlin {
 
 def libraryGroupId = 'io.padium.utils'
 def libraryArtifactId = 'utils'
-def libraryVersion = '0.1.5'
+def libraryVersion = '0.1.6'
 
 publishing {
     publications {
