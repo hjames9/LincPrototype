@@ -259,10 +259,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
                 if (mSpeechRecognizer == null)
                     throw SpeechRecognitionException("Speech recognition not available")
 
-                if (throttleAction()) {
-                    Log.d(TAG, "Hey man calm down! Throttling start to prevent disaster!")
-                    return@post
-                }
+                throttleAction()
 
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                         .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
@@ -328,8 +325,17 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
         mLastActionTimestamp = Date().time
     }
 
-    private fun throttleAction(): Boolean {
-        return Date().time <= mLastActionTimestamp + transitionMinimumDelay
+    private fun throttleAction() {
+        if (transitionMinimumDelay == 0L) return
+
+        val currentTimestamp = Date().time
+        if(currentTimestamp <= mLastActionTimestamp + transitionMinimumDelay) {
+            val timeRemaining = transitionMinimumDelay - (currentTimestamp - mLastActionTimestamp)
+            Log.d(TAG, "Hey man calm down! Throttling start to prevent disaster!  We have to wait ${timeRemaining}ms more")
+            Thread.sleep(timeRemaining)
+        } else {
+            Log.d(TAG, "No need to throttle")
+        }
     }
 
     /**
@@ -339,11 +345,7 @@ class SpeechToText(private var context: Context, private val delegate: SpeechDel
     fun stopListening() {
         if (!isListening) return
 
-        if (throttleAction()) {
-            Log.d(TAG, "Hey man calm down! Throttling stop to prevent disaster!")
-            return
-        }
-
+        throttleAction()
         isListening = false
         updateLastActionTimestamp()
         returnPartialResultsAndRecreateSpeechRecognizer()

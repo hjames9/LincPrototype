@@ -54,7 +54,7 @@ dependencies {
 
 def libraryGroupId = 'io.padium.audionlp'
 def libraryArtifactId = 'audionlp'
-def libraryVersion = '0.1.9'
+def libraryVersion = '0.2.0'
 
 publishing {
     publications {
